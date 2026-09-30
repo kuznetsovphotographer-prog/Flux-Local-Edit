@@ -2,11 +2,11 @@
 
 Локальная генеративная ретушь в Photoshop. Выделите участок, выберите Fill или Edit и получите результат на новом слое через ComfyUI.
 
-**[Скачать плагин 0.1.6 (.ccx)](https://raw.githubusercontent.com/kuznetsovphotographer-prog/Flux-Local-Edit/main/ccx/com.local.photoshop.flux-local-edit_PS.ccx)** · **[Установка с нуля](docs/INSTALLATION_RU.md)** · **[HTML-презентация](docs/index.html)**
+**[Скачать плагин 0.1.6 (.ccx)](https://github.com/kuznetsovphotographer-prog/Flux-Local-Edit/releases/download/v0.1.6/com.local.photoshop.flux-local-edit_PS.ccx)** · **[Установка с нуля](https://kuznetsovphotographer-prog.github.io/Flux-Local-Edit/docs/installation.html)** · **[Посмотреть демонстрации](https://kuznetsovphotographer-prog.github.io/Flux-Local-Edit/)**
 
 ![Удаление фоновой лампы: до и после Fill](docs/assets/images/lamps-comparison.jpg)
 
-На GitHub у CCX нажмите кнопку скачивания raw-файла. HTML откройте из скачанного ZIP в браузере или через GitHub Pages: GitHub показывает исходный код HTML, а не саму страницу.
+Кнопка скачивания выше ведёт прямо к установочному CCX. [На странице релиза](https://github.com/kuznetsovphotographer-prog/Flux-Local-Edit/releases/tag/v0.1.6) он находится в разделе Assets. Чтобы скачать исходники вместе с инструкциями и демонстрациями, выберите там Source code (zip). HTML-презентацию можно открыть по ссылке выше или из скачанной папки `docs/index.html` без установки дополнительных программ.
 
 ## Поправьте фотографию там, где нужно
 

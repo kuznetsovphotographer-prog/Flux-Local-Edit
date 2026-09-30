@@ -1,0 +1,68 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Portable Photoshop | Flux Local Edit</title><link rel="stylesheet" href="assets/site.css"><script src="assets/site.js" defer></script></head><body><a class="skip" href="#guide-main">Перейти к инструкции</a><header class="site-header wrap guide-header"><a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">F</span>Flux Local Edit</a><nav aria-label="Навигация"><a href="index.html">Презентация</a><a href="installation.html">Установка</a><a href="portable.html">Portable</a></nav></header><main class="guide-layout wrap"><aside class="guide-toc"><strong>В этой инструкции</strong><nav aria-label="Содержание"><a href="#portable-scope">Область применения</a><a href="#portable-install">Установка</a><a href="#portable-update">Обновление</a><a href="#portable-check">Проверка</a></nav><button class="button print-button" data-print>Печать / PDF</button></aside><article id="guide-main" class="guide-content"><h1>Установка в конкретную portable-сборку Photoshop</h1>
+<p><a id="portable-scope"></a></p>
+<h2>Для какого случая эта инструкция</h2>
+<p>Подтверждённый случай автора: <strong>Windows, Photoshop 27.8</strong>, запуск через <code>C:\Photoshop\PhotoshopPortable.exe</code>. Creative Cloud не требуется для описанного копирования готового пакета.</p>
+<p>Это не официальный способ Adobe и не универсальный рецепт для всех portable-сборок. Если у вас другой лаунчер, другая структура папок или нет описанного <code>PS.json</code>, сначала выясните, где ваша сборка хранит UXP-плагины. Не создавайте системные папки наугад и не заменяйте чужую регистрацию.</p>
+<p>Этот лаунчер при запуске подставляет собственную UXP-среду вместо обычной системной копии. Поэтому CCX, установленный через UPIA в обычный Photoshop, может не появиться в portable.</p>
+<p>Постоянное хранилище этой сборки:</p>
+<pre><code class="language-text">C:\Photoshop\App\Program Files\Common Files\Adobe\UXP\Plugins\External
+</code></pre>
+<p>Регистрация:</p>
+<pre><code class="language-text">C:\Photoshop\App\Program Files\Common Files\Adobe\UXP\PluginsInfo\v1\PS.json
+</code></pre>
+<p><a id="portable-install"></a></p>
+<h2>Установка готового CCX</h2>
+<ol>
+<li>Сохраните документы и полностью закройте Photoshop, portable-лаунчер и UXP Developer Tool. Не завершайте Photoshop принудительно с несохранённой работой.</li>
+<li>Скачайте <a href="../ccx/com.local.photoshop.flux-local-edit_PS.ccx">готовый CCX 0.1.6</a>. Сделайте резервную копию существующего <code>PS.json</code>. При обновлении сохраните также только старую папку этого плагина. Не нужно копировать весь Photoshop.</li>
+<li>Откройте CCX как ZIP-совместимый архив через 7-Zip. Если архиватор не открывает расширение, сделайте копию CCX с расширением <code>.zip</code>. Исходный CCX оставьте без изменений.</li>
+<li>Создайте точную папку версии:</li>
+</ol>
+<pre><code class="language-text">C:\Photoshop\App\Program Files\Common Files\Adobe\UXP\Plugins\External\com.local.photoshop.flux-local-edit_0.1.6
+</code></pre>
+<ol start="5">
+<li>Распакуйте <strong>содержимое</strong> CCX туда. <code>manifest.json</code>, <code>index.html</code>, <code>styles.css</code>, <code>src</code>, <code>icons</code> и <code>workflows</code> должны лежать непосредственно внутри папки версии. Дополнительной вложенной папки между ней и manifest быть не должно.</li>
+<li>Откройте <code>PS.json</code> в текстовом редакторе. В существующий массив <code>plugins</code> добавьте следующий объект или обновите существующий объект с тем же <code>pluginId</code>:</li>
+</ol>
+<pre><code class="language-json">{
+  &quot;hostMinVersion&quot;: &quot;25.0.0&quot;,
+  &quot;name&quot;: &quot;Flux Local Edit&quot;,
+  &quot;path&quot;: &quot;$systemPlugins\\External\\com.local.photoshop.flux-local-edit_0.1.6&quot;,
+  &quot;pluginId&quot;: &quot;com.local.photoshop.flux-local-edit&quot;,
+  &quot;status&quot;: &quot;enabled&quot;,
+  &quot;type&quot;: &quot;uxp&quot;,
+  &quot;versionString&quot;: &quot;0.1.6&quot;
+}
+</code></pre>
+<p><strong>Не заменяйте весь PS.json этим фрагментом.</strong> Это только один элемент массива. Сохраните все другие поля и плагины, включая Flux2 Klein и SeedVR2. Следите за запятыми между объектами; после последнего объекта запятая не нужна. Не оставляйте две активные записи одного <code>pluginId</code>.</p>
+<ol start="7">
+<li>Проверьте JSON в PowerShell:</li>
+</ol>
+<pre><code class="language-powershell">$portableInfo = &quot;C:\Photoshop\App\Program Files\Common Files\Adobe\UXP\PluginsInfo\v1\PS.json&quot;
+$portableConfig = Get-Content -LiteralPath $portableInfo -Raw | ConvertFrom-Json
+$portableConfig.plugins | Format-Table name, pluginId, versionString, path
+</code></pre>
+<p>Если есть ошибка разбора, исправьте файл или восстановите его резервную копию до запуска Photoshop.</p>
+<ol start="8">
+<li>Запустите <strong>именно</strong> <code>C:\Photoshop\PhotoshopPortable.exe</code>, а не внутренний Photoshop.exe.</li>
+<li>Откройте <strong>Подключаемые модули → Flux Local Edit → Flux Local Edit</strong> и выполните небольшой тест с запущенным ComfyUI.</li>
+</ol>
+<p>Путь с кириллицей сам по себе не был причиной прежней невидимости плагина у автора. Причиной была подмена UXP-среды лаунчером. Копирование CCX в папку Plug-ins тоже не регистрирует UXP-панель.</p>
+<p><a id="portable-update"></a></p>
+<h2>Как обновлять</h2>
+<p>Для нового релиза берите ID, версию и minVersion из manifest внутри нового CCX. Создайте папку <code>&lt;plugin-id&gt;_&lt;version&gt;</code>, распакуйте туда новый пакет и обновите только соответствующую запись в <code>PS.json</code>: путь, имя, версия и hostMinVersion.</p>
+<p>Все действия выполняйте при закрытом Photoshop. Перед изменением сохраните старую папку и регистрацию. Старую версию удаляйте только после успешной проверки новой и только по её точному пути внутри <code>Plugins\External</code>. Не удаляйте весь UXP, External или другие плагины. Этот документ сам ничего не устанавливает и не удаляет.</p>
+<p>Если правится код без изменения версии, возможна замена файлов в папке той же версии при закрытом Photoshop. Для распространяемого релиза безопаснее повысить версию и собрать новый CCX через UDT.</p>
+<p><a id="portable-check"></a></p>
+<h2>Если панель не появилась</h2>
+<ul>
+<li>Проверьте совпадение <code>pluginId</code> в PS.json и <code>id</code> в manifest.</li>
+<li>Проверьте, что <code>path</code> указывает на существующую папку и manifest лежит в её корне.</li>
+<li>Проверьте JSON и отсутствие дубликатов этого ID.</li>
+<li>Проверьте версию Photoshop: нужно 25.0+.</li>
+<li>Выгрузите dev-копию того же плагина в UDT и полностью перезапустите лаунчер.</li>
+<li>После запуска рабочая копия должна появиться в <code>C:\Program Files\Common Files\Adobe\UXP\Plugins\External\com.local.photoshop.flux-local-edit_0.1.6</code>. Постоянный источник при этом остаётся внутри <code>C:\Photoshop\App</code>.</li>
+</ul>
+<p>Если файлы есть только в <code>C:\Program Files\Common Files\Adobe\UXP.BackupByPhotoshopPortable</code>, значит они попали в обычную системную среду, которую portable-лаунчер убрал в резервную копию. Нужны постоянные файлы и регистрация именно внутри <code>C:\Photoshop\App</code>.</p>
+<p>Установка панели не заменяет настройку ComfyUI. После появления панели продолжите <a href="installation.html#comfyui">основную инструкцию</a>.</p>
+</article></main><footer class="wrap"><p>Flux Local Edit 0.1.6. Инструкция подготовлена 30 сентября 2026 года.</p><a href="index.html">Вернуться к презентации</a></footer></body></html>

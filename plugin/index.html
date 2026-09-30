@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Flux Local Edit</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="ps-window-frame">
+      <div class="panel-content">
+        <section class="generate-row">
+          <div id="modeTriggerWrap" class="mode-trigger-wrap">
+            <button
+              id="modeMenuButton"
+              class="mode-menu-hitbox"
+              type="button"
+              aria-label="Choose mode. Current mode Edit. Model FLUX.2 Klein 9B FP8."
+              aria-haspopup="menu"
+              aria-expanded="false"
+              title="Choose Edit or Fill · flux-2-klein-9b-fp8.safetensors"
+            ></button>
+            <div class="plugin-identity-visual" aria-hidden="true">
+              <span class="mode-menu-glyph">☰</span>
+              <div class="plugin-identity-copy">
+                <span id="pluginModeName" class="plugin-name">Flux Local Edit · Edit</span>
+                <div
+                  id="modelIndicator"
+                  class="model-indicator"
+                  title="flux-2-klein-9b-fp8.safetensors"
+                >Model: FLUX.2 Klein 9B FP8</div>
+              </div>
+            </div>
+          </div>
+          <div class="action-button-wrap generate-action-wrap">
+            <button
+              id="generateBtn"
+              class="ps-button generate-button"
+              type="button"
+              aria-label="Generate"
+            ></button>
+            <span class="button-visual">
+              <svg class="button-visual-icon sparkle-visual-icon" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M6.5 0.8c0.35 2.64 1.86 4.15 4.5 4.5-2.64 0.35-4.15 1.86-4.5 4.5C6.15 7.16 4.64 5.65 2 5.3 4.64 4.95 6.15 3.44 6.5 0.8Z"></path>
+                <path d="M12 8.8c0.16 1.19 0.84 1.87 2.03 2.03-1.19 0.16-1.87 0.84-2.03 2.03-0.16-1.19-0.84-1.87-2.03-2.03 1.19-0.16 1.87-0.84 2.03-2.03Z"></path>
+              </svg>
+              <span class="button-visual-label">Generate</span>
+            </span>
+          </div>
+          <div id="loaderProgress" class="loader-progress" aria-hidden="true"></div>
+        </section>
+
+        <div id="modeMenu" class="mode-menu" role="menu" hidden>
+          <div class="mode-card is-selected" data-mode="edit">
+            <button
+              class="mode-option mode-card-hitbox"
+              data-mode="edit"
+              role="menuitemradio"
+              aria-checked="true"
+              aria-label="Edit. Model FLUX.2 Klein 9B FP8."
+              title="flux-2-klein-9b-fp8.safetensors"
+              type="button"
+            ></button>
+            <div class="mode-card-visual" aria-hidden="true">
+              <span class="mode-card-indicator"></span>
+              <div class="mode-card-copy">
+                <span class="mode-card-title">Flux Local Edit · Edit</span>
+                <span class="mode-card-model">Model: FLUX.2 Klein 9B FP8</span>
+              </div>
+            </div>
+          </div>
+          <div class="mode-card" data-mode="fill">
+            <button
+              class="mode-option mode-card-hitbox"
+              data-mode="fill"
+              role="menuitemradio"
+              aria-checked="false"
+              aria-label="Fill. Model FLUX.1 Fill Dev FP8."
+              title="flux1-fill-dev-fp8.safetensors"
+              type="button"
+            ></button>
+            <div class="mode-card-visual" aria-hidden="true">
+              <span class="mode-card-indicator"></span>
+              <div class="mode-card-copy">
+                <span class="mode-card-title">Flux Local Edit · Fill</span>
+                <span class="mode-card-model">Model: FLUX.1 Fill Dev FP8</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <section class="prompt-panel section-stack">
+          <div class="panel-row">
+            <label for="promptInput">Prompt</label>
+            <div class="mp-editor">
+              <div class="mp-dropdown">
+                <button
+                  id="targetReadout"
+                  class="ps-button mp-readout"
+                  data-value="1"
+                  type="button"
+                  aria-label="1 megapixels"
+                  aria-haspopup="listbox"
+                  aria-expanded="false"
+                ></button>
+                <span class="mp-button-visual" aria-hidden="true">
+                  <span id="targetReadoutValue">1</span>
+                  <svg class="mp-chevron-visual-icon" viewBox="0 0 6 6" aria-hidden="true">
+                    <path d="m1 2 2 2 2-2"></path>
+                  </svg>
+                </span>
+              </div>
+              <span class="mp-unit">MP</span>
+            </div>
+          </div>
+
+          <textarea
+            id="promptInput"
+            rows="3"
+            spellcheck="true"
+            placeholder="Type your text prompt here to generate a new layer..."
+          >Smooth the neck skin, remove folds and wrinkles, keep realistic texture, keep lighting and identity unchanged.</textarea>
+          <div id="promptMenuBackdrop" class="prompt-menu-backdrop" aria-hidden="true" hidden></div>
+        </section>
+
+        <div id="mpMenu" class="mp-menu" role="listbox" hidden>
+          <div class="mp-option" data-value="1" role="option" tabindex="0">1</div>
+          <div class="mp-option" data-value="1.5" role="option" tabindex="0">1.5</div>
+          <div class="mp-option" data-value="2" role="option" tabindex="0">2</div>
+          <div class="mp-option" data-value="2.5" role="option" tabindex="0">2.5</div>
+          <div class="mp-option" data-value="3" role="option" tabindex="0">3</div>
+          <div class="mp-option" data-value="3.5" role="option" tabindex="0">3.5</div>
+          <div class="mp-option" data-value="4" role="option" tabindex="0">4</div>
+        </div>
+
+        <section class="document-panel document-stack">
+          <div class="render-hint" id="sizeHint">Select a rectangular area in Photoshop.</div>
+          <div class="preview-zone" aria-live="polite">
+            <div id="previewEmpty" class="preview-empty">
+              <svg class="placeholder-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m4 16 4.6-4.6a2 2 0 0 1 2.8 0L16 16m-2-2 1.6-1.6a2 2 0 0 1 2.8 0L20 14M6 20h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2Z"></path>
+              </svg>
+            </div>
+            <img id="previewImage" alt="Generated result preview" hidden />
+          </div>
+        </section>
+
+        <section id="referencePanel" class="reference-panel section-stack">
+          <div class="reference-actions">
+            <div class="action-button-wrap">
+              <label
+                id="referenceToggle"
+                class="ps-button reference-toggle"
+                tabindex="0"
+              >
+                <input id="referenceButton" type="checkbox" class="hidden-checkbox" aria-label="Choose reference image" />
+              </label>
+              <span class="button-visual">
+                <svg class="button-visual-icon reference-visual-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
+                  <path fill="none" stroke="currentColor" d="M13.8 10.2a4 4 0 0 0-5.6 0l-4 4a4 4 0 1 0 5.6 5.6l1.1-1.1m-.7-4.9a4 4 0 0 0 5.6 0l4-4a4 4 0 0 0-5.6-5.6l-1.1 1.1"></path>
+                </svg>
+                <span class="button-visual-label">Reference:</span>
+              </span>
+            </div>
+
+            <div id="clearReferenceWrap" class="action-button-wrap" hidden>
+              <button
+                id="clearReferenceBtn"
+                class="ps-button reference-clear"
+                type="button"
+                aria-label="Remove reference"
+                disabled
+              ></button>
+              <span class="button-visual button-visual-remove">
+                <span class="button-visual-label">Remove</span>
+                <svg class="button-visual-icon trash-visual-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
+                  <path fill="none" stroke="currentColor" d="M19 7 18.1 19.1A2 2 0 0 1 16.1 21H7.9a2 2 0 0 1-2-1.9L5 7m5 4v6m4-6v6m1-13V3a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v1M4 7h16"></path>
+                </svg>
+              </span>
+            </div>
+          </div>
+
+          <div
+            id="referenceZone"
+            class="reference-zone"
+            hidden
+          >
+            <img id="referenceImage" alt="Reference image preview" hidden />
+            <div id="referenceEmpty" class="reference-empty">
+              <span>Preview unavailable. Reference will still be used.</span>
+            </div>
+          </div>
+          <div id="referenceName" class="reference-name"></div>
+        </section>
+      </div>
+    </main>
+
+    <script src="src/logger.js"></script>
+    <script src="src/imageSizing.js"></script>
+    <script src="src/settings.js"></script>
+    <script src="src/workflowMapper.js"></script>
+    <script src="src/fillWorkflowMapper.js"></script>
+    <script src="src/comfyClient.js"></script>
+    <script src="src/photoshop.js"></script>
+    <script src="src/fillPhotoshop.js"></script>
+    <script src="src/editAdapter.js"></script>
+    <script src="src/fillAdapter.js"></script>
+    <script src="src/main.js"></script>
+  </body>
+</html>

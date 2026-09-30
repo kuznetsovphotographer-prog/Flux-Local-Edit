@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "requiredNodes": [
+    "LoadImage",
+    "LoadImageMask",
+    "DualCLIPLoader",
+    "UNETLoader",
+    "VAELoader",
+    "CLIPTextEncode",
+    "FluxGuidance",
+    "ConditioningZeroOut",
+    "DifferentialDiffusion",
+    "InpaintModelConditioning",
+    "KSampler",
+    "VAEDecode",
+    "ImageCompositeMasked",
+    "SaveImage"
+  ],
+  "defaults": {
+    "outputPrefix": "Flux-Local-Edit-Fill",
+    "unetName": "flux1-fill-dev-fp8.safetensors",
+    "unetWeightDtype": "default",
+    "clipName1": "clip_l.safetensors",
+    "clipName2": "t5xxl_fp8_e4m3fn.safetensors",
+    "clipType": "flux",
+    "clipDevice": "default",
+    "vaeName": "ae.safetensors",
+    "maskChannel": "red",
+    "guidance": 30,
+    "steps": 20,
+    "cfg": 1,
+    "samplerName": "euler",
+    "scheduler": "normal",
+    "denoise": 1,
+    "differentialDiffusionStrength": 1
+  },
+  "apiNodes": {
+    "loadImage": "1",
+    "loadMask": "2",
+    "dualClipLoader": "3",
+    "unetLoader": "4",
+    "vaeLoader": "5",
+    "clipTextEncode": "6",
+    "fluxGuidance": "7",
+    "conditioningZeroOut": "8",
+    "differentialDiffusion": "9",
+    "inpaintConditioning": "10",
+    "ksampler": "11",
+    "vaeDecode": "12",
+    "imageCompositeMasked": "13",
+    "saveImage": "14"
+  }
+}

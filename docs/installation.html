@@ -1,0 +1,250 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Установка с нуля | Flux Local Edit</title><link rel="stylesheet" href="assets/site.css"><script src="assets/site.js" defer></script></head><body><a class="skip" href="#guide-main">Перейти к инструкции</a><header class="site-header wrap guide-header"><a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">F</span>Flux Local Edit</a><nav aria-label="Навигация"><a href="index.html">Презентация</a><a href="installation.html">Установка</a><a href="portable.html">Portable</a></nav></header><main class="guide-layout wrap"><aside class="guide-toc"><strong>В этой инструкции</strong><nav aria-label="Содержание"><a href="#requirements">Требования</a><a href="#photoshop">Панель Photoshop</a><a href="#comfyui">ComfyUI</a><a href="#models">Модели</a><a href="#workflow">Шаблоны</a><a href="#first-run">Первый запуск</a><a href="#actions">Горячие клавиши</a><a href="#troubleshooting">Ошибки</a><a href="#licenses">Лицензии</a></nav><button class="button print-button" data-print>Печать / PDF</button></aside><article id="guide-main" class="guide-content"><h1>Установка Flux Local Edit с нуля</h1>
+<p>Инструкция для версии 0.1.6. Основной путь описан для Windows и NVIDIA. Если ComfyUI уже работает, не устанавливайте второй экземпляр: проверьте адрес и модели, затем переходите к первому запуску.</p>
+<p>Панель Photoshop и ComfyUI устанавливаются отдельно. Панель может открываться без ComfyUI, но генерация без сервера и моделей не начнётся.</p>
+<p><a id="requirements"></a></p>
+<h2>1. Проверьте, что понадобится</h2>
+<ul>
+<li>Photoshop 25.0 (2024) или новее. Проверенная автором конфигурация: Windows, portable Photoshop 27.8.</li>
+<li>Для обычной установки CCX: работающий Adobe Creative Cloud Desktop. Для разработки можно использовать UXP Developer Tool.</li>
+<li>Актуальный ComfyUI с поддержкой FLUX.1 Fill и FLUX.2 Klein.</li>
+<li>Достаточно места для ComfyUI и моделей. Итоговые семь файлов занимают десятки гигабайт; подготовка Fill из официальных весов временно требует ещё места для исходного файла около 24 GB и результата около 12 GB. Оставьте запас.</li>
+<li>Подходящая видеокарта, оперативная память и актуальный драйвер. Проверенный универсальный минимум VRAM для этой пары моделей не установлен. FP8 уменьшает объём весов, но не гарантирует работу на любой видеокарте. Начните с 1 MP, не с 4 MP.</li>
+</ul>
+<p>Код UXP-панели не привязан только к Windows, но установка и генерация на macOS в этом релизе не проверены. Не обещаем работу на Mac без теста.</p>
+<p><a id="photoshop"></a></p>
+<h2>2. Установите панель в Photoshop</h2>
+<h3>Обычный Photoshop с Creative Cloud</h3>
+<ol>
+<li>Скачайте <a href="../ccx/com.local.photoshop.flux-local-edit_PS.ccx">com.local.photoshop.flux-local-edit_PS.ccx</a>. На странице файла GitHub нажмите кнопку скачивания raw-файла. Не сохраняйте HTML-страницу вместо CCX.</li>
+<li>Сохраните открытые документы и закройте Photoshop.</li>
+<li>Дважды щёлкните CCX. Подтвердите установку в Creative Cloud Desktop. <a href="https://developer.adobe.com/uxp/guides/how-to/distribution/install/">Официальная установка Adobe</a>.</li>
+<li>Запустите Photoshop заново.</li>
+<li>Откройте <strong>Подключаемые модули → Flux Local Edit → Flux Local Edit</strong>. В английском интерфейсе: <strong>Plugins → Flux Local Edit → Flux Local Edit</strong>.</li>
+</ol>
+<p>Если двойной щелчок не помог, скачайте весь репозиторий через <strong>Code → Download ZIP</strong>, распакуйте его и запустите <code>ccx/INSTALL_PLUGIN.bat</code>. Файл CCX должен лежать рядом с BAT. Скрипт использует официальный установщик Adobe, запрашивает права администратора и запускает его из <code>C:\</code>. Creative Cloud и UPIA всё равно должны быть установлены. Этот BAT не является установщиком для portable-сборки.</p>
+<p>После установки через UPIA тоже полностью перезапустите Photoshop. Одна надпись Installed ещё не подтверждает, что нужная копия Photoshop увидела панель.</p>
+<h3>Через UXP Developer Tool</h3>
+<p>Подходит для исходников и разработки, если UDT уже доступен. <a href="https://developer.adobe.com/uxp/guides/how-to/developer-tools/">Инструменты разработчика Adobe</a>.</p>
+<ol>
+<li>Скачайте ZIP всего репозитория и распакуйте в постоянную папку, например <code>C:\FluxLocalEdit</code>.</li>
+<li>В Photoshop откройте <strong>Правка → Установки → Подключаемые модули</strong> и включите режим разработчика, если он требуется вашим UDT. Перезапустите Photoshop.</li>
+<li>Запустите Photoshop и UXP Developer Tool.</li>
+<li>Нажмите <strong>Add Plugin</strong> и выберите <strong>plugin/manifest.json</strong>.</li>
+<li>Нажмите <strong>Load</strong>, затем откройте панель через меню Photoshop.</li>
+</ol>
+<p>Нельзя выбирать workflow JSON из папки workflows. Ошибка Invalid Manifest File означает, что выбран не manifest плагина либо повреждён сам manifest. Не загружайте две копии одного ID одновременно: перед установкой CCX выгрузите dev-копию через Unload.</p>
+<h3>Portable Photoshop без Creative Cloud</h3>
+<p>Не копируйте CCX в обычную папку Plug-ins: UXP работает иначе. Для конкретного лаунчера <code>C:\Photoshop\PhotoshopPortable.exe</code> подготовлена <a href="portable.html">отдельная инструкция</a>. Она не универсальна для всех portable-сборок. Для другой сборки сначала нужно найти её UXP-хранилище и способ регистрации.</p>
+<p><a id="comfyui"></a></p>
+<h2>3. Установите и запустите ComfyUI</h2>
+<p>Ниже используется официальный portable-пакет ComfyUI для Windows. Он не связан с portable Photoshop и не изменяет Photoshop.</p>
+<ol>
+<li>Откройте <a href="https://docs.comfy.org/installation/comfyui_portable_windows">официальную инструкцию ComfyUI Portable</a>. Выберите сборку для своей видеокарты. Для NVIDIA используйте подходящий пакет NVIDIA, учитывая требования текущей сборки к драйверу.</li>
+<li>Скачайте архив. Распакуйте его полностью, например в <code>C:\AI\ComfyUI_windows_portable</code>. При необходимости используйте 7-Zip. Не запускайте BAT прямо из архива.</li>
+<li>В распакованной папке найдите <code>run_nvidia_gpu.bat</code> и запустите его. Python уже входит в пакет, отдельно устанавливать его для этого пути не нужно.</li>
+<li>Дождитесь в консоли адреса <code>http://127.0.0.1:8188</code>. Откройте его в браузере, если браузер не открылся сам.</li>
+<li>Не закрывайте консоль ComfyUI во время генерации.</li>
+</ol>
+<p>Плагин 0.1.6 использует фиксированный адрес <code>http://127.0.0.1:8188</code>. Если другой экземпляр работает на 8189 или Desktop выбрал другой порт, это не тот сервер. Для этой инструкции используйте один экземпляр на 8188. Не открывайте порт в интернет и не включайте <code>--listen 0.0.0.0</code> для работы на одном компьютере.</p>
+<p>Если ComfyUI установлен через Stability Matrix, запускайте существующий пакет там. Папки моделей могут быть общими или подключёнными через <code>extra_model_paths.yaml</code>. Проверяйте доступность имён через ComfyUI, а не только наличие файлов на диске. Сначала сохраните настройки перед их изменением.</p>
+<p>Для AMD/Intel используйте официальную инструкцию соответствующей сборки, а не NVIDIA BAT. Эти варианты для данного плагина отдельно не тестировались.</p>
+<p><a id="models"></a></p>
+<h2>4. Скачайте модели и положите в нужные папки</h2>
+<p>Для Fill нужны четыре файла, для Edit три. Для работы обоих режимов нужен весь список. На Hugging Face откройте <strong>Files and versions</strong>, выберите нужный файл и нажмите Download. Не скачивайте весь репозиторий модели и не загружайте diffusers-папки вместо одиночного <code>.safetensors</code>.</p>
+<p>Для gated-моделей BFL понадобится аккаунт Hugging Face и принятие условий модели. Ошибка 401/403 обычно означает отсутствие доступа; это не ошибка Photoshop.</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Таблица, доступна горизонтальная прокрутка"><table>
+<thead>
+<tr>
+<th>Режим</th>
+<th>Точное имя файла для плагина</th>
+<th>Папка внутри ComfyUI</th>
+<th>Откуда взять</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Fill</td>
+<td><code>flux1-fill-dev-fp8.safetensors</code></td>
+<td><code>models/diffusion_models/</code></td>
+<td>Официальный <a href="https://huggingface.co/black-forest-labs/FLUX.1-Fill-dev/tree/main">FLUX.1 Fill Dev</a>, затем подготовка FP8 ниже</td>
+</tr>
+<tr>
+<td>Fill</td>
+<td><code>clip_l.safetensors</code></td>
+<td><code>models/text_encoders/</code></td>
+<td><a href="https://huggingface.co/comfyanonymous/flux_text_encoders/tree/main">Текстовые энкодеры FLUX</a></td>
+</tr>
+<tr>
+<td>Fill</td>
+<td><code>t5xxl_fp8_e4m3fn.safetensors</code></td>
+<td><code>models/text_encoders/</code></td>
+<td><a href="https://huggingface.co/comfyanonymous/flux_text_encoders/tree/main">Текстовые энкодеры FLUX</a></td>
+</tr>
+<tr>
+<td>Fill</td>
+<td><code>ae.safetensors</code></td>
+<td><code>models/vae/</code></td>
+<td><a href="https://huggingface.co/black-forest-labs/FLUX.1-Fill-dev/tree/main">Официальный FLUX.1 Fill Dev</a></td>
+</tr>
+<tr>
+<td>Edit</td>
+<td><code>flux-2-klein-9b-fp8.safetensors</code></td>
+<td><code>models/diffusion_models/</code></td>
+<td><a href="https://huggingface.co/black-forest-labs/FLUX.2-klein-9b-fp8/tree/main">Официальный Klein 9B FP8</a></td>
+</tr>
+<tr>
+<td>Edit</td>
+<td><code>qwen_3_8b_fp8mixed.safetensors</code></td>
+<td><code>models/text_encoders/</code></td>
+<td><a href="https://huggingface.co/Comfy-Org/vae-text-encorder-for-flux-klein-9b/tree/main/split_files/text_encoders">Энкодер Klein 9B от Comfy-Org</a></td>
+</tr>
+<tr>
+<td>Edit</td>
+<td><code>flux2-vae.safetensors</code></td>
+<td><code>models/vae/</code></td>
+<td><a href="https://huggingface.co/Comfy-Org/vae-text-encorder-for-flux-klein-9b/tree/main/split_files/vae">VAE Klein от Comfy-Org</a></td>
+</tr>
+</tbody></table></div>
+<p>Это имена из конфигурации плагина, а не произвольные рекомендации. <strong>Klein 4B, base 9B, GGUF и другие энкодеры не являются заменой для этого релиза.</strong> Изменение модели в открытом браузерном workflow не меняет граф, который отправляет плагин.</p>
+<h3>Как подготовить Fill FP8 из официального файла</h3>
+<p>Официальный файл <code>flux1-fill-dev.safetensors</code> и нужный плагину <code>flux1-fill-dev-fp8.safetensors</code> не равнозначны. Переименование не меняет точность весов.</p>
+<p>Самый воспроизводимый путь без случайных перепаковок:</p>
+<ol>
+<li>Скачайте официальный одиночный <code>flux1-fill-dev.safetensors</code> в <code>C:\AI\Downloads</code>. Исходник занимает около 24 GB.</li>
+<li>Скачайте весь пакет публикации, чтобы был доступен <code>tools/convert_fill_fp8.py</code>. В примере ниже пакет распакован в <code>C:\FluxLocalEdit</code>.</li>
+<li>Закройте генерации ComfyUI на время подготовки. Откройте PowerShell и выполните:</li>
+</ol>
+<pre><code class="language-powershell">&amp; &quot;C:\AI\ComfyUI_windows_portable\python_embeded\python.exe&quot; &quot;C:\FluxLocalEdit\tools\convert_fill_fp8.py&quot; &quot;C:\AI\Downloads\flux1-fill-dev.safetensors&quot; &quot;C:\AI\ComfyUI_windows_portable\ComfyUI\models\diffusion_models\flux1-fill-dev-fp8.safetensors&quot;
+</code></pre>
+<ol start="4">
+<li>Дождитесь сообщения <code>Saved</code>. Скрипт переводит веса в unscaled FP8 E4M3 на CPU, сохраняет ключи/формы и проверяет контейнер. Он не меняет исходник и откажется перезаписывать уже существующий выходной файл. Нужен Python именно из ComfyUI с torch и safetensors, а не случайный системный Python.</li>
+<li>Результат будет около 12 GB. Квантование может немного изменить качество по сравнению с исходными весами. Полный цикл генерации именно с заново сконвертированным официальным файлом пока не проверен автором; первый небольшой Fill-тест обязателен. Если у вас уже есть рабочий FP8-файл, конвертация не нужна.</li>
+</ol>
+<p>Скрипт обрабатывает веса по одному тензору, но запас RAM и диска всё равно нужен. При ошибке он удаляет только собственный временный <code>.partial</code>, исходный файл остаётся. <code>ModuleNotFoundError</code> означает, что выбран не Python ComfyUI либо его окружение повреждено. Не устанавливайте зависимости в системный Python наугад.</p>
+<h3>Итоговая структура папок</h3>
+<pre><code class="language-text">ComfyUI_windows_portable/
+  ComfyUI/
+    models/
+      diffusion_models/
+        flux1-fill-dev-fp8.safetensors
+        flux-2-klein-9b-fp8.safetensors
+      text_encoders/
+        clip_l.safetensors
+        t5xxl_fp8_e4m3fn.safetensors
+        qwen_3_8b_fp8mixed.safetensors
+      vae/
+        ae.safetensors
+        flux2-vae.safetensors
+</code></pre>
+<p>Не кладите эти файлы в <code>checkpoints</code>. Не добавляйте вложенную папку с названием модели: для текущей конфигурации важно, чтобы ComfyUI видел именно указанные имена без префикса каталога. После копирования моделей полностью перезапустите ComfyUI.</p>
+<p><a id="workflow"></a></p>
+<h2>5. Какой шаблон нужен в ComfyUI</h2>
+<p><strong>Для работы из Photoshop скачивать внешний шаблон не обязательно.</strong> Плагин сам строит API-граф Fill и использует комплектный граф Edit. Браузерный canvas ComfyUI может оставаться пустым.</p>
+<p>Если хотите проверить ComfyUI отдельно от Photoshop:</p>
+<ul>
+<li>Для Edit перетащите в ComfyUI комплектный <a href="../workflows/image_flux2_klein_image_edit_9b_distilled.json">image_flux2_klein_image_edit_9b_distilled.json</a>. Выберите нужные модели в загрузчиках и свою картинку в Load Image; проверьте обе ветки, если используете Reference. Это UI-workflow, не UXP manifest.</li>
+<li>Для Fill в библиотеке шаблонов найдите <strong>Flux.1 Inpaint</strong>. Порядок работы и официальный пример есть в <a href="https://docs.comfy.org/tutorials/flux/flux-1-fill-dev">инструкции ComfyUI Fill</a>. Официальный пример может использовать полноточный Fill и T5 FP16; для проверки вашей FP8-конфигурации выберите установленные файлы в Load Diffusion Model, DualCLIPLoader и Load VAE. Загрузите изображение, нарисуйте маску через Mask Editor и запустите граф.</li>
+<li>Для Klein правильное семейство шаблона: <strong>Flux.2 Klein 9B Distilled / Image Edit</strong>. <a href="https://docs.comfy.org/tutorials/flux/flux-2-klein">Официальный разбор ComfyUI</a>.</li>
+</ul>
+<p>Плагин использует core-ноды. Не нужно устанавливать случайные наборы custom nodes по старым видео. Если нет Flux2Scheduler, ReferenceLatent, DifferentialDiffusion или InpaintModelConditioning, проверьте обновление ComfyUI и ошибки импорта в его консоли. Сохраните рабочую конфигурацию перед обновлением.</p>
+<p><a id="first-run"></a></p>
+<h2>6. Первая генерация в Photoshop</h2>
+<h3>Fill</h3>
+<ol>
+<li>Запустите ComfyUI на 8188. Сначала убедитесь, что его страница открывается в браузере.</li>
+<li>Откройте фотографию в Photoshop. Для первого теста используйте RGB 8 bit, обычный небольшой участок и сохранённую копию документа.</li>
+<li>Лассо выделите деталь вместе с небольшим запасом по краям. Не выделяйте всю фотографию, если хотите исправить маленькую складку.</li>
+<li>Откройте Flux Local Edit. Нажмите на весь блок с названием режима и модели, выберите <strong>Fill / FLUX.1 Fill Dev FP8</strong>.</li>
+<li>Выберите <strong>1 MP</strong>.</li>
+<li>Напишите, что должно быть на месте выделения. Например: <code>Smooth gray trouser fabric, matching the surrounding texture and lighting.</code> Или для удаления лампы: <code>Dark wooden wall matching the surrounding background, without a lamp.</code></li>
+<li>Нажмите <strong>Generate</strong> и дождитесь нового слоя. Во время обработки кнопка позволяет остановить запрос.</li>
+<li>Сравните новый слой с оригиналом через значок глаза. В Fill исходная форма выделения становится маской слоя; при необходимости поправьте маску, цвет или непрозрачность.</li>
+</ol>
+<p>Модель видит выделение с окружением, а не автоматически весь PSD: используется context crop с 20% отступом, ограниченным 64–512 px и границами холста. Для нескольких островков создаются общая маска, один запрос и один итоговый слой.</p>
+<p>Пустой Prompt разрешён, но это заполнение по окружению, не гарантированное удаление. Модель может добавить нежелательную деталь. Для точной задачи предпочтительнее описать желаемый результат. Для предсказуемого первого теста используйте короткий запрос на английском; качество понимания русского не гарантируется.</p>
+<h3>Edit</h3>
+<ol>
+<li>Выберите <strong>Edit / FLUX.2 Klein 9B FP8</strong>.</li>
+<li>Используйте <strong>Прямоугольную область</strong> без растушёвки. Соотношение сторон может быть произвольным, но выделение должно быть сплошным прямоугольником внутри холста.</li>
+<li>Напишите инструкцию, например <code>Make the jacket black, preserve its shape and the lighting.</code></li>
+<li>При необходимости подключите Reference и выберите изображение. Для первого теста удобнее PNG или JPEG.</li>
+<li>Начните с 1 MP и нажмите Generate. Результат заменяет прямоугольный участок новым выровненным слоем. Маска лассо, как в Fill, для этого режима не реализована.</li>
+</ol>
+<p>Reference хранится только в текущей сессии панели. После её закрытия/перезапуска выберите файл заново.</p>
+<h3>Расширение фотографии через Fill</h3>
+<p>Сначала увеличьте холст средствами Photoshop. Подготовьте в документе незаполненную область рядом с существующей фотографией, затем выделите её с небольшим перекрытием оригинального края и используйте Fill. Плагин сам не увеличивает холст; результат зависит от доступного окружения. Сложная архитектура может достраиваться с ошибками.</p>
+<p><a id="actions"></a></p>
+<h2>7. Две горячие клавиши через Actions</h2>
+<p>Прямого назначения произвольной клавиши UXP-панели здесь нет. Используются Photoshop Actions.</p>
+<ol>
+<li>Откройте <strong>Окно → Операции</strong> / <strong>Window → Actions</strong>.</li>
+<li>Создайте новую операцию, например <code>Flux Local Edit - Fill</code>, назначьте доступную функциональную клавишу с нужными модификаторами и включите запись.</li>
+<li>Подготовьте выделение, выберите Fill, запрос и MP. Один раз запустите Generate. Остановите запись.</li>
+<li>Создайте вторую операцию для Edit и назначьте другую функциональную клавишу.</li>
+<li>Проверьте обе операции на копии документа, особенно воспроизведение в вашей версии Photoshop.</li>
+</ol>
+<p>Записываются режим, текст запроса, MP и фактический seed. Поэтому операция воспроизводит сохранённые параметры, а не обязательно текущий текст в панели. Reference в операцию не записывается. Два обработчика и автотесты есть, но сценарии Actions/горячих клавиш требуют отдельной проверки в вашем Photoshop и не заявлены как полностью проверенные на всех версиях.</p>
+<p><a id="troubleshooting"></a></p>
+<h2>8. Если что-то не работает</h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Таблица, доступна горизонтальная прокрутка"><table>
+<thead>
+<tr>
+<th>Симптом</th>
+<th>Что проверить</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Photoshop не видит плагин</td>
+<td>Версию 25.0+, полный перезапуск, установку CCX, отсутствие dev-копии того же ID. Для portable проверьте именно её регистрацию, а не системную UXP-папку.</td>
+</tr>
+<tr>
+<td>CCX не открывается</td>
+<td>Скачан ли raw-файл, работает ли Creative Cloud. Альтернатива для обычной установки: BAT рядом с CCX. Журналы UPIA: <code>C:\ProgramData\Adobe\UPI\Log\Upia.log</code> и <code>EMCL.log</code>.</td>
+</tr>
+<tr>
+<td>Invalid Manifest File в UDT</td>
+<td>Выберите <code>plugin/manifest.json</code>, не workflow JSON. Не выбирайте CCX в Add Plugin.</td>
+</tr>
+<tr>
+<td>Не соединяется с ComfyUI</td>
+<td>Открывается ли <code>http://127.0.0.1:8188</code>, работает ли консоль, не занят ли порт другим процессом. Плагин не запускает сервер за вас.</td>
+</tr>
+<tr>
+<td>Missing Fill models / Value not in list</td>
+<td>Проверьте точные имена всех нужных файлов, их папки, отсутствие вложенного префикса. Перезапустите ComfyUI.</td>
+</tr>
+<tr>
+<td>Missing nodes</td>
+<td>Обновите ComfyUI после сохранения рабочей конфигурации; проверьте ошибки импорта в консоли.</td>
+</tr>
+<tr>
+<td>Edit не принимает лассо</td>
+<td>Используйте сплошной прямоугольник или переключитесь в Fill.</td>
+</tr>
+<tr>
+<td>CUDA out of memory</td>
+<td>Начните с 1 MP, закройте другие GPU-задачи, дождитесь завершения очереди. При необходимости перезапустите ComfyUI. Не заменяйте модель на GGUF без адаптации графа.</td>
+</tr>
+<tr>
+<td>Долго нет результата</td>
+<td>Первое чтение модели с диска занимает время. Проверьте очередь/консоль ComfyUI. В рекламных видео это ожидание вырезано.</td>
+</tr>
+<tr>
+<td>Цвет или края не совпадают</td>
+<td>Попробуйте другой запрос/выделение, повторите генерацию, поправьте маску и цвет кривыми или уровнями. Идеальное совпадение не гарантируется.</td>
+</tr>
+<tr>
+<td>Fill добавляет лишнее при пустом запросе</td>
+<td>Опишите желаемое содержимое. Пустой запрос не является специальной командой удаления.</td>
+</tr>
+<tr>
+<td>Модель не выгрузилась при переключении</td>
+<td>Выбор режима меняет следующий граф, а не немедленно память GPU. ComfyUI управляет загрузкой и освобождением памяти.</td>
+</tr>
+</tbody></table></div>
+<p>Когда просите помощь, сообщите: Photoshop и его версию, Windows, способ установки, Fill/Edit, адрес ComfyUI и полный текст ошибки. Сделайте скриншот без личных файлов. Если панель открывается, но не генерирует, это обычно другой этап, чем установка CCX.</p>
+<p><a id="licenses"></a></p>
+<h2>9. Лицензии и обработка фотографий</h2>
+<p>Панель бесплатна для скачивания и не вызывает платный API. Но лицензии моделей действуют отдельно. Используемые Fill Dev и Klein 9B имеют non-commercial условия для весов; разрешения на результаты описаны отдельно. Перед коммерческим применением сверяйтесь с <a href="https://huggingface.co/black-forest-labs/FLUX.1-Fill-dev/blob/main/LICENSE.md">актуальной лицензией Fill</a>, <a href="https://huggingface.co/black-forest-labs/FLUX.2-klein-9b-fp8/blob/main/LICENSE.md">лицензией Klein 9B</a> и <a href="https://bfl.ai/licensing">BFL Licensing</a>. Это не юридическая консультация.</p>
+<p>При localhost-подключении плагин передаёт изображения вашему ComfyUI, не облачному генератору. ComfyUI сохраняет загруженные изображения и результаты в своих input/output-папках: локальная обработка не означает отсутствие следов на диске. Вы самостоятельно контролируете эти файлы и сторонние расширения ComfyUI. Не используйте фотографии людей без необходимых прав и согласий.</p>
+<p>Ссылки на внешнюю документацию проверены 30 сентября 2026 года. Внешние интерфейсы и условия могут меняться. Эта инструкция соответствует коду 0.1.6; её примеры путей нужно заменить на ваши реальные папки.</p>
+</article></main><footer class="wrap"><p>Flux Local Edit 0.1.6. Инструкция подготовлена 30 сентября 2026 года.</p><a href="index.html">Вернуться к презентации</a></footer></body></html>

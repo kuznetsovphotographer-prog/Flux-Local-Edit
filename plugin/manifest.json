@@ -1,0 +1,83 @@
+{
+  "manifestVersion": 5,
+  "id": "com.local.photoshop.flux-local-edit",
+  "name": "Flux Local Edit",
+  "version": "0.1.6",
+  "main": "index.html",
+  "icons": [
+    {
+      "width": 23,
+      "height": 23,
+      "path": "icons/icon-23.png",
+      "scale": [1],
+      "theme": ["darkest", "dark", "medium", "lightest", "light", "all"],
+      "species": ["pluginList"]
+    },
+    {
+      "width": 46,
+      "height": 46,
+      "path": "icons/icon-46.png",
+      "scale": [2],
+      "theme": ["darkest", "dark", "medium", "lightest", "light", "all"],
+      "species": ["pluginList"]
+    }
+  ],
+  "host": {
+    "app": "PS",
+    "minVersion": "25.0.0",
+    "data": {
+      "apiVersion": 2,
+      "enableMenuRecording": true
+    }
+  },
+  "requiredPermissions": {
+    "localFileSystem": "request",
+    "network": {
+      "domains": "all"
+    },
+    "clipboard": "readAndWrite"
+  },
+  "entrypoints": [
+    {
+      "type": "panel",
+      "id": "fluxLocalEditPanel",
+      "label": {
+        "default": "Flux Local Edit"
+      },
+      "icons": [
+        {
+          "width": 23,
+          "height": 23,
+          "path": "icons/icon-23.png",
+          "scale": [1],
+          "theme": ["darkest", "dark", "medium", "lightest", "light", "all"],
+          "species": ["pluginList"]
+        },
+        {
+          "width": 46,
+          "height": 46,
+          "path": "icons/icon-46.png",
+          "scale": [2],
+          "theme": ["darkest", "dark", "medium", "lightest", "light", "all"],
+          "species": ["pluginList"]
+        }
+      ],
+      "minimumSize": {
+        "width": 360,
+        "height": 320
+      },
+      "maximumSize": {
+        "width": 720,
+        "height": 960
+      },
+      "preferredDockedSize": {
+        "width": 420,
+        "height": 410
+      },
+      "preferredFloatingSize": {
+        "width": 460,
+        "height": 410
+      }
+    }
+  ]
+}

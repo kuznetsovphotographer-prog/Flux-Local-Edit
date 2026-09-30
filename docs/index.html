@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Flux Local Edit | Локальная ретушь в Photoshop</title>
+  <meta name="description" content="Fill и Edit через локальный ComfyUI прямо в Photoshop. Реальные демонстрации, скачивание CCX и подробная установка моделей.">
+  <meta property="og:title" content="Flux Local Edit: локальная ретушь в Photoshop">
+  <meta property="og:description" content="Выделите участок. Получите результат на новом слое. Fill и Edit в одной панели.">
+  <meta property="og:image" content="assets/images/lamps-comparison.jpg">
+  <meta name="theme-color" content="#25282d">
+  <link rel="stylesheet" href="assets/site.css">
+  <script src="assets/site.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">Перейти к содержимому</a>
+  <header class="site-header wrap">
+    <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">F</span>Flux Local Edit</a>
+    <nav aria-label="Главная навигация"><a href="#examples">Примеры</a><a href="#modes">Fill и Edit</a><a href="installation.html">Установка</a></nav>
+    <a class="small-download" href="../ccx/com.local.photoshop.flux-local-edit_PS.ccx" download>Скачать .ccx</a>
+  </header>
+  <main id="main">
+    <section class="hero wrap">
+      <div class="hero-copy">
+        <p class="product-line">Photoshop + ваш ComfyUI</p>
+        <h1>Поправьте кадр.<br>Оставайтесь<br>в Photoshop.</h1>
+        <p class="lead">Уберите лишнюю деталь, смягчите складку или достройте край фотографии. Выделите участок, выберите Fill или Edit. Результат появится на новом слое.</p>
+        <div class="cta-row"><a class="button primary" href="../ccx/com.local.photoshop.flux-local-edit_PS.ccx" download>Скачать плагин</a><a class="button" href="installation.html">Установить с нуля</a></div>
+        <p class="requirements">Версия 0.1.6. Photoshop 25.0+.<br>Локальная генерация, без ключа платного API.</p>
+      </div>
+      <figure class="hero-demo">
+        <div class="comparison" data-comparison style="--position:50%">
+          <img src="assets/images/lamps-after.jpg" alt="Фотография после локальной правки фоновой лампы" width="1400" height="1141" fetchpriority="high">
+          <img class="before-layer" src="assets/images/lamps-before.jpg" alt="Тот же кадр до правки" width="1400" height="1141">
+          <span class="compare-label before-label">До</span><span class="compare-label after-label">После</span><span class="split-line" aria-hidden="true"></span>
+        </div>
+        <label class="slider-label">Сравните фон <input type="range" min="0" max="100" value="50" data-slider aria-label="Доля исходного изображения: фон"><span>Двигайте ползунок</span></label>
+        <figcaption>Реальная правка Fill: лампа на фоне. Фрагмент записи, без дополнительной цветокоррекции.</figcaption>
+      </figure>
+    </section>
+    <section class="workflow-strip wrap" aria-label="Как работает плагин">
+      <div><span class="step-number">1</span><p>Выделите участок<br><small>Привычными инструментами Photoshop</small></p></div>
+      <div><span class="step-number">2</span><p>Запустите генерацию<br><small>Плагин отправит граф в ComfyUI</small></p></div>
+      <div><span class="step-number">3</span><p>Сравните новый слой<br><small>Оригинал остаётся в документе</small></p></div>
+    </section>
+    <section id="modes" class="mode-section wrap">
+      <div class="section-heading"><h2>Две модели.<br>Разные задачи.</h2><p>В шапке панели всегда видно, какой режим и какая модель выбраны. Переключатель открывается нажатием на весь блок названия.</p></div>
+      <div class="mode-layout">
+        <figure class="panel-figure"><img src="assets/images/panel.png" alt="Настоящая панель Flux Local Edit в Photoshop: Fill, модель, Prompt, MP, Generate и предпросмотр" width="638" height="764" loading="lazy"><figcaption>Панель версии 0.1.6 в Photoshop автора.</figcaption></figure>
+        <div class="mode-descriptions">
+          <article><h3>Fill</h3><p class="model-name">FLUX.1 Fill Dev FP8</p><p>Когда нужно заполнить выделенную область, убрать деталь или поправить ткань. Поддерживает лассо, растушёвку и несколько раздельных выделений.</p><p>Модель получает участок с окружением и маску. Новый слой возвращается с маской исходной формы.</p></article>
+          <article><h3>Edit</h3><p class="model-name">FLUX.2 Klein 9B FP8</p><p>Когда удобнее описать изменение словами: поменять цвет, материал или деталь. При необходимости можно добавить Reference.</p><p>В этом релизе нужен сплошной прямоугольник. Edit перегенерирует выбранный участок, это другой процесс, чем масочный Fill.</p></article>
+          <p class="quiet-note">Выбор режима меняет следующий запрос. Модели загружаются при Generate, а памятью видеокарты управляет ComfyUI.</p>
+        </div>
+      </div>
+    </section>
+    <section id="examples" class="examples wrap">
+      <div class="section-heading"><h2>Посмотрите<br>на результат.</h2><p>Несколько задач из записей работы автора. Все показанные примеры сделаны в Fill. Качество зависит от снимка, выделения и запроса.</p></div>
+      <div class="example-grid">
+        <article class="example"><h3>Складки на одежде</h3><p>Локальная правка ткани без перегенерации всего портрета.</p><div class="comparison" data-comparison style="--position:50%"><img src="assets/images/trousers-after.jpg" alt="Ткань брюк после Fill" loading="lazy"><img class="before-layer" src="assets/images/trousers-before.jpg" alt="Складки на брюках до Fill" loading="lazy"><span class="compare-label before-label">До</span><span class="compare-label after-label">После</span><span class="split-line" aria-hidden="true"></span></div><label class="slider-label">До/после<input type="range" min="0" max="100" value="50" data-slider aria-label="Сравнение складок на одежде"></label><details class="video-details"><summary>Посмотреть процесс, 17 секунд</summary><video controls playsinline preload="none" poster="assets/images/trousers-comparison.jpg" aria-label="Работа Fill со складками на брюках"><source src="assets/demos/trousers.mp4" type="video/mp4"></video></details></article>
+        <article class="example"><h3>Подушка в интерьере</h3><p>Несколько участков лассо становятся одной маской нового слоя.</p><div class="comparison" data-comparison style="--position:50%"><img src="assets/images/pillow-after.jpg" alt="Подушка после локальной правки" loading="lazy"><img class="before-layer" src="assets/images/pillow-before.jpg" alt="Подушка до правки" loading="lazy"><span class="compare-label before-label">До</span><span class="compare-label after-label">После</span><span class="split-line" aria-hidden="true"></span></div><label class="slider-label">До/после<input type="range" min="0" max="100" value="50" data-slider aria-label="Сравнение подушки"></label><details class="video-details"><summary>Посмотреть процесс, 17 секунд</summary><video controls playsinline preload="none" poster="assets/images/pillow-comparison.jpg" aria-label="Правка подушки через Fill"><source src="assets/demos/pillow.mp4" type="video/mp4"></video></details></article>
+        <article class="example example-wide"><div><h3>Больше места у края кадра</h3><p>Увеличьте холст в Photoshop, выделите незаполненную область с перекрытием края и запустите Fill. Здесь модель продолжает небо и архитектуру справа.</p><details class="video-details"><summary>Посмотреть процесс, 15 секунд</summary><video controls playsinline preload="none" poster="assets/images/outpaint-comparison.jpg" aria-label="Расширение края фотографии"><source src="assets/demos/outpaint.mp4" type="video/mp4"></video></details></div><div><div class="comparison" data-comparison style="--position:50%"><img src="assets/images/outpaint-after.jpg" alt="Край фотографии достроен с помощью Fill" loading="lazy"><img class="before-layer" src="assets/images/outpaint-before.jpg" alt="Незаполненная полоса справа от исходного кадра" loading="lazy"><span class="compare-label before-label">До</span><span class="compare-label after-label">После</span><span class="split-line" aria-hidden="true"></span></div><label class="slider-label">До/после<input type="range" min="0" max="100" value="50" data-slider aria-label="Сравнение достроенного края"></label></div></article>
+      </div>
+      <details class="video-details lamp-process"><summary>Посмотреть процесс правки лампы, 22 секунды</summary><video controls playsinline preload="none" poster="assets/images/lamps-comparison.jpg" aria-label="Удаление фоновой лампы в Photoshop"><source src="assets/demos/lamps.mp4" type="video/mp4"></video></details>
+      <p class="quiet-note">Видео смонтированы из настоящих записей: ожидание вырезано, скорость показанных фрагментов не менялась. Ползунки и GIF сравнивают конкретные кадры до/после. Это не измерение скорости генерации.</p>
+    </section>
+    <section class="install-section wrap">
+      <div><h2>От скачивания<br>до первого слоя.</h2><p class="lead">В инструкции есть вся цепочка. Что скачать, куда положить семь файлов моделей и как проверить, что Photoshop видит панель, а ComfyUI готов к генерации.</p><a class="button primary" href="installation.html">Открыть подробную инструкцию</a></div>
+      <ol class="install-steps"><li><strong>Панель Photoshop</strong><p>CCX для обычной установки. Исходники и manifest для UXP Developer Tool.</p></li><li><strong>ComfyUI и модели</strong><p>Официальные источники, точные имена и папки. Отдельное объяснение подготовки Fill FP8.</p></li><li><strong>Первый запуск</strong><p>Примеры запросов, 1 MP для старта, Fill/Edit, новый слой и маска.</p></li></ol>
+    </section>
+    <section class="faq wrap">
+      <h2>Перед установкой</h2>
+      <details><summary>Нужно ли каждый раз собирать граф в ComfyUI?</summary><p>Нет. Плагин отправляет свой граф автоматически. Запустите ComfyUI на 127.0.0.1:8188 и установите модели. Комплектный шаблон пригодится, если хотите проверить Edit отдельно в ComfyUI.</p></details>
+      <details><summary>Фотографии отправляются в облако?</summary><p>При указанном localhost-адресе они обрабатываются вашим ComfyUI на компьютере. Учтите, что ComfyUI сохраняет входные файлы и результаты на диске. Сторонние расширения и права на фотографии вы контролируете самостоятельно.</p></details>
+      <details><summary>Что происходит без текста запроса?</summary><p>Fill достраивает содержимое по окружению. Это не гарантированное удаление: модель иногда добавляет лишнее. Напишите, что должно остаться в выделенной области, если нужна более управляемая правка.</p></details>
+      <details><summary>Будут ли цвет и детали точно совпадать?</summary><p>Не всегда. Возможны сдвиг цвета, швы и изменения геометрии. Иногда помогают другой запрос, повторная генерация, маска, кривые или уровни. Это вспомогательный инструмент ретуши, не обещание идеального результата.</p></details>
+      <details><summary>Можно установить без Creative Cloud?</summary><p>У автора панель нативно установлена в конкретный portable Photoshop 27.8. Для его лаунчера есть <a href="portable.html">отдельная инструкция</a>. Для других сборок этот способ не гарантируется. UXP Developer Tool можно использовать, если он уже доступен.</p></details>
+      <details><summary>Что с бесплатностью и коммерческой работой?</summary><p>Панель доступна для скачивания и не требует платного API. Лицензии Photoshop и моделей действуют отдельно. У Fill Dev и Klein 9B есть ограничения использования весов; условия результатов описаны отдельно. Проверьте <a href="https://huggingface.co/black-forest-labs/FLUX.1-Fill-dev/blob/main/LICENSE.md">Fill</a>, <a href="https://huggingface.co/black-forest-labs/FLUX.2-klein-9b-fp8/blob/main/LICENSE.md">Klein 9B</a> и <a href="https://bfl.ai/licensing">BFL Licensing</a> перед коммерческим применением.</p></details>
+    </section>
+    <section class="closing wrap"><h2>Попробуйте на одном участке.</h2><p>Сохраните фотографию, сделайте небольшое выделение и начните с 1 MP.</p><div class="cta-row"><a class="button primary" href="../ccx/com.local.photoshop.flux-local-edit_PS.ccx" download>Скачать Flux Local Edit 0.1.6</a><a class="button" href="installation.html">Как установить</a></div></section>
+  </main>
+  <footer class="wrap"><p>Александр Кузнецов. Независимый плагин для Photoshop.<br>Не официальный продукт Adobe или Black Forest Labs.</p><p>Исходники и документация входят в пакет.<br>Windows проверена автором; macOS не тестировалась.</p></footer>
+</body>
+</html>

@@ -98,7 +98,9 @@
 
   async function exportSelectionMerged(selection, logger) {
     return core.executeAsModal(async () => {
-      const sourceDoc = await getActiveDocument();
+      const sourceDoc = Array.from(app.documents || []).find((doc) => doc.id === selection.docId);
+      if (!sourceDoc) throw new Error("The export source document was closed.");
+      await activateDocumentById(sourceDoc.id);
       const tempFolder = await fs.getTemporaryFolder();
       const file = await tempFolder.createFile(`flux2-selection-${Date.now()}.png`, { overwrite: true });
       let tempDoc = null;
@@ -273,22 +275,37 @@
     if (!layer) {
       throw new Error("Photoshop did not create an active placed layer.");
     }
-    await safeRenameLayer(layer, layerName, logger);
-    await fitLayerToBounds(layer, targetBounds, logger);
-    await setRectangleSelection(targetBounds);
-    return layer;
+    try {
+      await safeRenameLayer(layer, layerName, logger);
+      await fitLayerToBounds(layer, targetBounds, logger);
+      await setRectangleSelection(targetBounds);
+      return layer;
+    } catch (error) {
+      await Promise.resolve().then(() => layer.delete()).catch(() => null);
+      throw error;
+    }
   }
 
-  async function placeResultLayer(resultFile, selection, logger) {
+  async function placeResultLayer(resultFile, selection, logger, check = () => {}) {
     return core.executeAsModal(async () => {
+      check();
+      if (selection.batch) globalThis.FluxLocalEditBatchPhotoshop.validSource(selection.batch.session);
       await activateDocumentById(selection.docId);
       const targetDoc = await getActiveDocument();
       const layerName = `ComfyUI Edit - ${new Date().toISOString().replace("T", " ").replace(/:/g, "-").slice(0, 19)}`;
 
       logger && logger.info("Placing generated result into the original document without opening a new image window.");
       const layer = await placeResultFileIntoSelection(resultFile, targetDoc, layerName, selection.bounds, logger);
-      await activateDocumentById(selection.docId);
-      return layer;
+      try {
+        check();
+        if (selection.batch) await globalThis.FluxLocalEditBatchPhotoshop.attachResult(layer, selection.batch);
+        check();
+        await activateDocumentById(selection.docId);
+        return layer;
+      } catch (error) {
+        await Promise.resolve().then(() => layer.delete()).catch(() => null);
+        throw error;
+      }
     }, { commandName: "Place Flux2 result" });
   }
 

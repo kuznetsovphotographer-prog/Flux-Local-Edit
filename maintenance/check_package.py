@@ -50,7 +50,7 @@ def main():
         if json.loads(archive.read('manifest.json')) != manifest:
             errors.append('CCX manifest differs from publication source')
         assert manifest['id'] == 'com.local.photoshop.flux-local-edit'
-        assert manifest['version'] == '0.1.6'
+        assert manifest['version'] == '0.2.2'
         for path in (ROOT / 'plugin').rglob('*'):
             if not path.is_file() or 'tests' in path.parts or path.name == 'manifest.json':
                 continue

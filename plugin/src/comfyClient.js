@@ -91,7 +91,7 @@
 
   async function responseJson(response, label) {
     if (!response.ok) {
-      const text = await response.text().catch(() => "");
+      const text = await Promise.resolve().then(() => response.text()).catch(() => "");
       throw new Error(`${label} failed (${response.status}): ${text || response.statusText}`);
     }
     return response.json();
@@ -99,11 +99,11 @@
 
   async function responseOptionalJson(response, label) {
     if (!response.ok) {
-      const text = await response.text().catch(() => "");
+      const text = await Promise.resolve().then(() => response.text()).catch(() => "");
       throw new Error(`${label} failed (${response.status}): ${text || response.statusText}`);
     }
 
-    const text = await response.text().catch(() => "");
+    const text = await Promise.resolve().then(() => response.text()).catch(() => "");
     if (!text) {
       return null;
     }

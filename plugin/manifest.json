@@ -2,7 +2,7 @@
   "manifestVersion": 5,
   "id": "com.local.photoshop.flux-local-edit",
   "name": "Flux Local Edit",
-  "version": "0.1.6",
+  "version": "0.2.2",
   "main": "index.html",
   "icons": [
     {

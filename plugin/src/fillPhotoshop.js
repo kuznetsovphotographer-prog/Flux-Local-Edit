@@ -182,9 +182,11 @@
     await action.batchPlay(descriptors, {});
   }
 
-  async function exportFillAssets(settings, logger) {
+  async function exportFillAssets(settings, logger, options = {}) {
     return core.executeAsModal(async () => {
-      const sourceDoc = await getActiveDocument();
+      const sourceDoc = options.docId ? getDocumentById(options.docId) : await getActiveDocument();
+      if (!sourceDoc) throw new Error("The export source document was closed.");
+      await activateDocumentById(sourceDoc.id);
       const rawBounds = await Promise.resolve(sourceDoc.selection.bounds);
       if (!rawBounds) {
         throw new Error("No active selection. Select one or more areas first.");
@@ -252,6 +254,7 @@
           throw new Error("The saved selection was not preserved in the mask document.");
         }
 
+        await maskDoc.flatten(); // A temporary mask layer must not inherit source group masks/opacity.
         await maskDoc.createLayer(constants.LayerKind.NORMAL, { name: "Flux Local Edit mask pixels" });
         await maskDoc.selection.selectAll();
         await fillCurrentSelection("black");
@@ -298,9 +301,9 @@
           await activateDocumentById(sourceDoc.id).catch(() => null);
           const liveChannel = findChannelByName(liveSource, channelName);
           if (liveChannel) {
-            await liveSource.selection.load(liveChannel, constants.SelectionType.REPLACE, false).catch(() => null);
+            await Promise.resolve().then(() => liveSource.selection.load(liveChannel, constants.SelectionType.REPLACE, false)).catch(() => null);
             if (!keepSourceChannel) {
-              await liveChannel.remove().catch(() => null);
+              await Promise.resolve().then(() => liveChannel.remove()).catch(() => null);
               await restoreActiveLayers(liveSource, activeLayerIds).catch(() => null);
             }
           }
@@ -426,8 +429,10 @@
     }, { commandName: "Restore Flux Local Edit Fill state" });
   }
 
-  async function placeFillResult(resultFile, session, logger) {
+  async function placeFillResult(resultFile, session, logger, check = () => {}) {
     return core.executeAsModal(async () => {
+      check();
+      if (session.batch) globalThis.FluxLocalEditBatchPhotoshop.validSource(session.batch.session);
       const doc = getDocumentById(session.docId);
       if (!doc) throw new Error("The original Photoshop document was closed during generation.");
       await activateDocumentById(session.docId);
@@ -442,8 +447,11 @@
         if (!placedLayer) throw new Error("Photoshop did not create a Fill result layer.");
         placedLayer.name = "Flux Local Edit - Fill";
         await fitLayerToBounds(placedLayer, session.contextBounds, logger);
+        check();
         await doc.selection.load(channel, constants.SelectionType.REPLACE, false);
         await createLayerMaskFromSelection();
+        if (session.batch) await globalThis.FluxLocalEditBatchPhotoshop.attachResult(placedLayer, session.batch);
+        check();
         await doc.selection.load(channel, constants.SelectionType.REPLACE, false);
         await channel.remove();
         logger && logger.info("Applied the original selection as the Fill layer mask.");
@@ -452,8 +460,8 @@
         if (placedLayer) await deleteLayer(placedLayer).catch(() => null);
         const cleanupChannel = findChannelByName(doc, session.selectionChannelName);
         if (cleanupChannel) {
-          await doc.selection.load(cleanupChannel, constants.SelectionType.REPLACE, false).catch(() => null);
-          await cleanupChannel.remove().catch(() => null);
+          await Promise.resolve().then(() => doc.selection.load(cleanupChannel, constants.SelectionType.REPLACE, false)).catch(() => null);
+          await Promise.resolve().then(() => cleanupChannel.remove()).catch(() => null);
         }
         await restoreActiveLayers(doc, session.activeLayerIds).catch(() => null);
         throw error;

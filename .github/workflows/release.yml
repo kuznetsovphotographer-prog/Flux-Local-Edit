@@ -1,0 +1,56 @@
+name: Publish packaged plugin
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ccx/com.local.photoshop.flux-local-edit_PS.ccx
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Publish the existing CCX and Windows helpers
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=$(mktemp -d)
+          download_file() {
+            gh api "repos/$GITHUB_REPOSITORY/contents/$1?ref=$GITHUB_SHA" --jq .content | base64 --decode > "$output/$2"
+          }
+          download_file plugin/manifest.json manifest.json
+          version=$(jq -r .version "$output/manifest.json")
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          tag="v$version"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists; leaving its files unchanged."
+            exit 0
+          fi
+          download_file ccx/com.local.photoshop.flux-local-edit_PS.ccx com.local.photoshop.flux-local-edit_PS.ccx
+          download_file ccx/INSTALL_PLUGIN.bat INSTALL_PLUGIN.bat
+          download_file ccx/UNINSTALL_PLUGIN.bat UNINSTALL_PLUGIN.bat
+          download_file "RELEASE_NOTES_v$version.md" notes.md
+          python3 - "$output" <<'PY'
+          import json, pathlib, sys, zipfile
+          folder = pathlib.Path(sys.argv[1])
+          expected = json.loads((folder / 'manifest.json').read_text())
+          with zipfile.ZipFile(folder / 'com.local.photoshop.flux-local-edit_PS.ccx') as package:
+              assert package.testzip() is None, 'CCX archive is corrupt'
+              actual = json.loads(package.read('manifest.json'))
+              assert actual == expected, 'CCX manifest differs from source'
+              assert actual['id'] == 'com.local.photoshop.flux-local-edit'
+          PY
+          cd "$output"
+          sha256sum com.local.photoshop.flux-local-edit_PS.ccx INSTALL_PLUGIN.bat UNINSTALL_PLUGIN.bat > SHA256SUMS.txt
+          gh release create "$tag" com.local.photoshop.flux-local-edit_PS.ccx INSTALL_PLUGIN.bat UNINSTALL_PLUGIN.bat SHA256SUMS.txt \
+            --target "$GITHUB_SHA" --title "Flux Local Edit $version" --notes-file notes.md --latest

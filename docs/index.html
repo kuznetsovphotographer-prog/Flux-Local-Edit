@@ -6,7 +6,7 @@
   <title>Flux Local Edit | Локальная ретушь в Photoshop</title>
   <meta name="description" content="Fill и Edit через локальный ComfyUI прямо в Photoshop. Реальные демонстрации, скачивание CCX и подробная установка моделей.">
   <meta property="og:title" content="Flux Local Edit: локальная ретушь в Photoshop">
-  <meta property="og:description" content="Выделите участок. Получите результат на новом слое. Fill и Edit в одной панели.">
+  <meta property="og:description" content="Выделите несколько участков. Каждый вернётся отдельным слоем в общую группу. Fill и Edit в одной панели.">
   <meta property="og:image" content="assets/images/lamps-comparison.jpg">
   <meta name="theme-color" content="#25282d">
   <link rel="stylesheet" href="assets/site.css">
@@ -26,7 +26,7 @@
         <h1>Поправьте кадр.<br>Оставайтесь<br>в Photoshop.</h1>
         <p class="lead">Уберите лишнюю деталь, смягчите складку или достройте край фотографии. Выделите участок, выберите Fill или Edit. Результат появится на новом слое.</p>
         <div class="cta-row"><a class="button primary" href="../ccx/com.local.photoshop.flux-local-edit_PS.ccx" download>Скачать плагин</a><a class="button" href="installation.html">Установить с нуля</a></div>
-        <p class="requirements">Версия 0.1.6. Photoshop 25.0+.<br>Локальная генерация, без ключа платного API.</p>
+        <p class="requirements">Версия 0.2.2. Photoshop 25.0+.<br>Локальная генерация, без ключа платного API.</p>
       </div>
       <figure class="hero-demo">
         <div class="comparison" data-comparison style="--position:50%">
@@ -48,11 +48,15 @@
       <div class="mode-layout">
         <figure class="panel-figure"><img src="assets/images/panel.png" alt="Настоящая панель Flux Local Edit в Photoshop: Fill, модель, Prompt, MP, Generate и предпросмотр" width="638" height="764" loading="lazy"><figcaption>Панель версии 0.1.6 в Photoshop автора.</figcaption></figure>
         <div class="mode-descriptions">
-          <article><h3>Fill</h3><p class="model-name">FLUX.1 Fill Dev FP8</p><p>Когда нужно заполнить выделенную область, убрать деталь или поправить ткань. Поддерживает лассо, растушёвку и несколько раздельных выделений.</p><p>Модель получает участок с окружением и маску. Новый слой возвращается с маской исходной формы.</p></article>
-          <article><h3>Edit</h3><p class="model-name">FLUX.2 Klein 9B FP8</p><p>Когда удобнее описать изменение словами: поменять цвет, материал или деталь. При необходимости можно добавить Reference.</p><p>В этом релизе нужен сплошной прямоугольник. Edit перегенерирует выбранный участок, это другой процесс, чем масочный Fill.</p></article>
+          <article><h3>Fill</h3><p class="model-name">FLUX.1 Fill Dev FP8</p><p>Когда нужно заполнить выделенную область, убрать деталь или поправить ткань. Поддерживает лассо, растушёвку и несколько раздельных выделений.</p><p>Каждый раздельный участок получает своё окружение, маску и отдельный запрос. Результаты возвращаются отдельными слоями в общую группу.</p></article>
+          <article><h3>Edit</h3><p class="model-name">FLUX.2 Klein 9B FP8</p><p>Когда удобнее описать изменение словами: поменять цвет, материал или деталь. При необходимости можно добавить Reference.</p><p>Можно выбрать несколько раздельных прямоугольников без растушёвки. Каждый обрабатывается по очереди и возвращается отдельным слоем на своё место.</p></article>
           <p class="quiet-note">Выбор режима меняет следующий запрос. Модели загружаются при Generate, а памятью видеокарты управляет ComfyUI.</p>
         </div>
       </div>
+    </section>
+    <section id="batch" class="install-section wrap">
+      <div><h2>Несколько участков.<br>Один запуск.</h2><p class="lead">В версии 0.2.2 очередь работает и в Fill, и в Klein Edit. Отметьте нужные объекты, напишите общий запрос и нажмите Generate.</p><a class="button primary" href="installation.html#multi-region">Как выбрать несколько областей</a></div>
+      <ol class="install-steps"><li><strong>Добавьте выделения через Shift</strong><p>В Edit нужны раздельные прямоугольники с Feather 0. В Fill подходят также лассо и растушёвка. Оставляйте зазор между участками.</p></li><li><strong>Дождитесь очереди</strong><p>Каждый фрагмент проходит отдельную генерацию. MP относятся к каждому участку, а все исходники берутся из одной сохранённой копии фотографии.</p></li><li><strong>Сравните слои в группе</strong><p>Каждый результат возвращается на своё место. При Stop готовые слои сохраняются.</p></li></ol>
     </section>
     <section id="examples" class="examples wrap">
       <div class="section-heading"><h2>Посмотрите<br>на результат.</h2><p>Несколько задач из записей работы автора. Все показанные примеры сделаны в Fill. Качество зависит от снимка, выделения и запроса.</p></div>
@@ -77,7 +81,7 @@
       <details><summary>Можно установить без Creative Cloud?</summary><p>У автора панель нативно установлена в конкретный portable Photoshop 27.8. Для его лаунчера есть <a href="portable.html">отдельная инструкция</a>. Для других сборок этот способ не гарантируется. UXP Developer Tool можно использовать, если он уже доступен.</p></details>
       <details><summary>Что с бесплатностью и коммерческой работой?</summary><p>Панель доступна для скачивания и не требует платного API. Лицензии Photoshop и моделей действуют отдельно. У Fill Dev и Klein 9B есть ограничения использования весов; условия результатов описаны отдельно. Проверьте <a href="https://huggingface.co/black-forest-labs/FLUX.1-Fill-dev/blob/main/LICENSE.md">Fill</a>, <a href="https://huggingface.co/black-forest-labs/FLUX.2-klein-9b-fp8/blob/main/LICENSE.md">Klein 9B</a> и <a href="https://bfl.ai/licensing">BFL Licensing</a> перед коммерческим применением.</p></details>
     </section>
-    <section class="closing wrap"><h2>Попробуйте на одном участке.</h2><p>Сохраните фотографию, сделайте небольшое выделение и начните с 1 MP.</p><div class="cta-row"><a class="button primary" href="../ccx/com.local.photoshop.flux-local-edit_PS.ccx" download>Скачать Flux Local Edit 0.1.6</a><a class="button" href="installation.html">Как установить</a></div></section>
+    <section class="closing wrap"><h2>Попробуйте на одном участке.</h2><p>Сохраните фотографию, сделайте небольшое выделение и начните с 1 MP.</p><div class="cta-row"><a class="button primary" href="../ccx/com.local.photoshop.flux-local-edit_PS.ccx" download>Скачать Flux Local Edit 0.2.2</a><a class="button" href="installation.html">Как установить</a></div></section>
   </main>
   <footer class="wrap"><p>Александр Кузнецов. Независимый плагин для Photoshop.<br>Не официальный продукт Adobe или Black Forest Labs.</p><p>Исходники и документация входят в пакет.<br>Windows проверена автором; macOS не тестировалась.</p></footer>
 </body>

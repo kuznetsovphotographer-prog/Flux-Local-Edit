@@ -992,15 +992,10 @@
     if (!$("sizeHint")) {
       return;
     }
+    if (isGenerating) return;
     try {
-      const settings = getUiSettings(activeMode);
-      if (activeMode === "fill") {
-        const context = await globalThis.FluxLocalEditFillPhotoshop.getSelectionContext(settings);
-        updateSizeHint(context, settings, "fill", context);
-      } else {
-        const selection = await globalThis.Flux2Photoshop.getSolidSelection();
-        updateSizeHint(selection, settings, "edit");
-      }
+      $("sizeHint").textContent = await globalThis.FluxLocalEditBatchPhotoshop.selectionHint();
+      updateMegapixelsReadout(getUiSettings(activeMode));
     } catch (error) {
       updateMegapixelsReadout(getUiSettings());
       $("sizeHint").textContent = error.message;
@@ -1100,6 +1095,7 @@
     currentClient = null;
     currentPromptId = "";
     setBusy(true);
+    let batchState = null;
 
     try {
       const adapters = {
@@ -1111,7 +1107,7 @@
         throw new Error(`Mode adapter ${requestedMode} is unavailable.`);
       }
       activeLogger.info(`Starting ${MODE_METADATA[requestedMode].label} with ${MODE_METADATA[requestedMode].modelLabel}.`);
-      return await adapter.run({
+      const result = await globalThis.FluxLocalEditBatchRunner.run({
         settings,
         referenceFile: selectedReferenceFile,
         logger: activeLogger,
@@ -1120,6 +1116,10 @@
         throwIfCancelled,
         updateSelectionHint: updateSizeHint,
         recordAction: recordGenerateAction,
+        onBatchProgress(state) {
+          batchState = state;
+          if ($("sizeHint")) $("sizeHint").textContent = `${MODE_METADATA[requestedMode].label}: region ${state.current}/${state.total}; ready ${state.completed}/${state.total}.`;
+        },
         setClient(client) {
           currentClient = client;
         },
@@ -1133,12 +1133,17 @@
           }
         },
         setPreview
-      });
+      }, adapter, requestedMode);
+      if ($("sizeHint")) $("sizeHint").textContent = `Done: ${result.completed}/${result.total} regions. Results are in one group.`;
+      return result;
     } catch (error) {
+      const state = error.batch || batchState || { completed: 0, total: 0 };
+      if ($("sizeHint")) $("sizeHint").textContent = `${error.kind === "cancelled" ? "Stopped" : "Error"}: ${state.completed}/${state.total} regions kept. ${error.kind === "cancelled" ? "" : `${error.phase ? `[${error.phase}] ` : ""}${error.message || String(error)}`}`;
       if (error && error.kind === "cancelled") {
         activeLogger.warn("Generation stopped by user.");
       } else {
         const message = error && error.message || String(error);
+        console.error("Flux Local Edit 0.2.2", error.phase || "", error.stack || error);
         if (/out of memory|cuda.*memory|allocation/i.test(message)) {
           activeLogger.error(`${message} Reduce MP and try again.`);
         } else {
@@ -1338,6 +1343,6 @@
     updateReferencePreview();
     attachEvents();
     refreshSelectionHint();
-    logger.info("Ready. Choose Edit or Fill, make a Photoshop selection, then click Generate.");
+    logger.info("Ready: Flux Local Edit 0.2.2. Choose Edit or Fill, select separate regions, then click Generate.");
   });
 })();

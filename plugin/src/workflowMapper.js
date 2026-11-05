@@ -137,7 +137,7 @@
   }
 
   function normalizeSeed(value) {
-    const raw = String(value || "").trim().toLowerCase();
+    const raw = String(value == null ? "" : value).trim().toLowerCase();
     if (!raw || raw === "random") {
       return Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
     }

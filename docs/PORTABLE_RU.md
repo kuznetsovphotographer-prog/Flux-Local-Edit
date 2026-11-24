@@ -27,7 +27,7 @@ C:\Photoshop\App\Program Files\Common Files\Adobe\UXP\PluginsInfo\v1\PS.json
 ## Установка готового CCX
 
 1. Сохраните документы и полностью закройте Photoshop, portable-лаунчер и UXP Developer Tool. Не завершайте Photoshop принудительно с несохранённой работой.
-2. Скачайте [готовый CCX 0.2.2](../ccx/com.local.photoshop.flux-local-edit_PS.ccx). Сделайте резервную копию существующего `PS.json`. При обновлении сохраните также только старую папку этого плагина. Не нужно копировать весь Photoshop.
+2. Скачайте [готовый CCX 0.2.2](https://github.com/kuznetsovphotographer-prog/Flux-Local-Edit/releases/download/v0.2.2/com.local.photoshop.flux-local-edit_PS.ccx). Сделайте резервную копию существующего `PS.json`. При обновлении сохраните также только старую папку этого плагина. Не нужно копировать весь Photoshop.
 3. Откройте CCX как ZIP-совместимый архив через 7-Zip. Если архиватор не открывает расширение, сделайте копию CCX с расширением `.zip`. Исходный CCX оставьте без изменений.
 4. Создайте точную папку версии:
 

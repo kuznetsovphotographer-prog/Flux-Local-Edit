@@ -2,11 +2,11 @@
 
 Выделите участок в Photoshop и отправьте его в свой ComfyUI. Local Edit вернёт правку на новом слое. В панели три модели: FLUX.1 Fill, FLUX.2 Klein и Qwen Image 2.1 Turbo.
 
-**[Установить 0.4.0 из исходников](docs/INSTALLATION_0.4.0_RU.md)** · **[Скачать предыдущий установщик 0.2.2 (.ccx)](https://github.com/kuznetsovphotographer-prog/Flux-Local-Edit/releases/download/v0.2.2/com.local.photoshop.flux-local-edit_PS.ccx)** · **[Посмотреть демонстрации](https://kuznetsovphotographer-prog.github.io/Flux-Local-Edit/)**
+**[Скачать Local Edit 0.4.0](https://github.com/kuznetsovphotographer-prog/Flux-Local-Edit/releases/tag/v0.4.0)** · **[Как установить](docs/INSTALLATION_0.4.0_RU.md)** · **[Посмотреть демонстрации](https://kuznetsovphotographer-prog.github.io/Flux-Local-Edit/)**
 
 ![Удаление фоновой лампы: до и после Fill](docs/assets/images/lamps-comparison.jpg)
 
-Ветка `main` обновлена до **0.4.0**. Чтобы попробовать эту версию, нажмите **Code → Download ZIP**, распакуйте архив и откройте `plugin/manifest.json` в UXP Developer Tool. Новый CCX пока не опубликован. Старый установщик содержит два режима и не включает Qwen и новые правила Fill.
+Для обычной установки скачайте CCX 0.4.0 и, если нужны, Windows-скрипты из раздела Assets. Исходники той же версии лежат в ветке `main`: их можно загрузить через `plugin/manifest.json` в UXP Developer Tool. [Предыдущий релиз 0.2.2](https://github.com/kuznetsovphotographer-prog/Flux-Local-Edit/releases/tag/v0.2.2) остаётся доступен.
 
 ## Что изменилось в 0.4.0
 
@@ -63,7 +63,7 @@ FLUX.2 Klein 9B FP8 меняет прямоугольный участок по 
 
 ## Начните с установки, а не с JSON
 
-1. [Загрузите панель 0.4.0 в Photoshop](docs/INSTALLATION_0.4.0_RU.md).
+1. [Установите панель 0.4.0 в Photoshop](docs/INSTALLATION_0.4.0_RU.md).
 2. [Установите и запустите ComfyUI](docs/INSTALLATION_RU.md#comfyui), если его ещё нет.
 3. [Скачайте модели для нужного режима](docs/INSTALLATION_0.4.0_RU.md#модели).
 4. Сделайте небольшое выделение, выберите режим и нажмите Generate.
@@ -107,7 +107,7 @@ FLUX.1 Fill Dev и используемая здесь FLUX.2 Klein **9B** ра�
 Исходники в `plugin/`. Автотесты: `run-tests.js`, `batch-tests.js`, `fill-blend-tests.cjs` и `engine-tests.cjs` в папке `plugin/tests/`.
 
 - [Изменения в 0.4.0](RELEASE_NOTES_v0.4.0.md)
-- [Установка 0.4.0 из исходников](docs/INSTALLATION_0.4.0_RU.md)
+- [Установка Local Edit 0.4.0](docs/INSTALLATION_0.4.0_RU.md)
 - [Инструкция для CCX 0.2.2](docs/INSTALLATION_RU.md)
 - [Установка в проверенную portable-сборку](docs/PORTABLE_RU.md)
 

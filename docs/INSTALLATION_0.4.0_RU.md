@@ -1,12 +1,12 @@
-# Local Edit 0.4.0: установка из исходников
+# Установка Local Edit 0.4.0
 
-В этой версии три режима: FLUX.1 Fill, FLUX.2 Klein и Qwen Edit 2.1 Turbo. Для 0.4.0 нужен UXP Developer Tool. Если нужен готовый установщик, [CCX 0.2.2](https://github.com/kuznetsovphotographer-prog/Flux-Local-Edit/releases/tag/v0.2.2) по-прежнему доступен, но в нём только Fill и Klein без новых изменений.
+В этой версии три режима: FLUX.1 Fill, FLUX.2 Klein и Qwen Edit 2.1 Turbo. Нужен Photoshop **25.0** или новее.
 
 ## Photoshop и ComfyUI
 
-1. Нужен Photoshop **25.0** или новее. Скачайте архив в **Code → Download ZIP** и распакуйте его в постоянную папку.
-2. Откройте [Adobe UXP Developer Tool](https://developer.adobe.com/photoshop/uxp/guides/). Выберите **Add Plugin**, укажите `plugin/manifest.json`, нажмите **Load**. В Photoshop откройте **Подключаемые модули → Local Edit**. При обновлении исходников сделайте **Unload → Load**. Workflow JSON вместо manifest не загружайте.
-3. Установите [ComfyUI](https://docs.comfy.org/installation/install_comfyui), если его ещё нет. Запустите локальный экземпляр и проверьте, что он открывается по адресу `http://127.0.0.1:8188`. Для локальной работы не открывайте порт в интернет. Плагин сам отправляет workflow в ComfyUI, открывать его руками не нужно.
+1. **Из готового пакета.** Закройте Photoshop. Скачайте CCX со [страницы релиза](https://github.com/kuznetsovphotographer-prog/Flux-Local-Edit/releases/tag/v0.4.0) и откройте его через Creative Cloud Desktop. На Windows можно скачать `INSTALL_PLUGIN.bat`, положить рядом с CCX и запустить. Для удаления используйте `UNINSTALL_PLUGIN.bat`. Оба BAT обращаются к установщику Adobe, они не устанавливают панель в portable-сборки. Перед запуском выгрузите dev-копию с тем же ID, если она загружена.
+2. **Из исходников.** Скачайте архив в **Code → Download ZIP**. В [Adobe UXP Developer Tool](https://developer.adobe.com/photoshop/uxp/guides/) выберите **Add Plugin**, укажите `plugin/manifest.json` и нажмите **Load**. При обновлении исходников сделайте **Unload → Load**. Workflow JSON вместо manifest не загружайте.
+3. Установите [ComfyUI](https://docs.comfy.org/installation/install_comfyui), если его ещё нет. Запустите локальный экземпляр и проверьте адрес `http://127.0.0.1:8188`. В Photoshop откройте **Подключаемые модули → Local Edit**. Для локальной работы не открывайте порт в интернет. Плагин сам отправляет workflow в ComfyUI, открывать его руками не нужно.
 
 ## Модели
 
@@ -31,7 +31,7 @@
 
 ## Автозапуск и память
 
-Если ComfyUI уже работает, плагин подключается к нему. Для ручного запуска настройка не нужна. Чтобы включить автозапуск под Windows для установки ComfyUI с `venv`, скопируйте `plugin/scripts/comfyui-path.example.txt` в той же папке под именем `comfyui-path.txt`. Замените пример абсолютным путём к папке, где лежат `main.py` и `venv\Scripts\pythonw.exe`. Одна строка, без кавычек, UTF-8 без BOM. При запросе UXP разрешите запуск локального файла.
+Если ComfyUI уже работает, плагин подключается к нему. Для ручного запуска настройка не нужна. Чтобы включить автозапуск под Windows для установки ComfyUI с `venv`, скопируйте `scripts/comfyui-path.example.txt` из папки самого плагина там же под именем `comfyui-path.txt`. Замените пример абсолютным путём к папке, где лежат `main.py` и `venv\Scripts\pythonw.exe`. Одна строка, без кавычек, UTF-8 без BOM. При запросе UXP разрешите запуск локального файла.
 
 В сборках со встроенным Python вместо `venv` запускайте ComfyUI штатным способом. Если автозапуск настроен, но сервер не отвечает, смотрите `comfy-launch.log` и `comfy-server.log` в `%LOCALAPPDATA%\LocalEdit`.
 

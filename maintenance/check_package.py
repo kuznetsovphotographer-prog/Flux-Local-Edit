@@ -62,7 +62,12 @@ def main():
                 if not path.is_file() or not runtime or path.name == 'comfyui-path.txt':
                     continue
                 key = relative.as_posix()
-                if key not in names or path.read_bytes() != archive.read(key):
+                source_bytes = path.read_bytes()
+                package_bytes = archive.read(key) if key in names else None
+                if package_bytes is not None and path.suffix.lower() in {'.js', '.json', '.py', '.cmd', '.txt', '.html', '.css'}:
+                    source_bytes = source_bytes.replace(b'\r\n', b'\n')
+                    package_bytes = package_bytes.replace(b'\r\n', b'\n')
+                if source_bytes != package_bytes:
                     errors.append(f'CCX runtime differs: {key}')
         else:
             # Source-only updates keep the already released installer byte for byte.

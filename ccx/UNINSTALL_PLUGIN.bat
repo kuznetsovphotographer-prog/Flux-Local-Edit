@@ -1,14 +1,18 @@
 @echo off
-setlocal
+setlocal DisableDelayedExpansion
 
+set "LOCAL_EDIT_BAT=%~f0"
 fltmc >nul 2>&1
 if errorlevel 1 (
   echo Requesting administrator permission...
-  powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -Verb RunAs -WorkingDirectory 'C:\'"
-  exit /b
+  powershell -NoProfile -Command "try { Start-Process -FilePath $env:LOCAL_EDIT_BAT -Verb RunAs -WorkingDirectory ($env:SystemDrive + '\') -ErrorAction Stop } catch { Write-Error $_; exit 1 }"
+  if errorlevel 1 exit /b 1
+  exit /b 0
 )
 
-set "UPIA=C:\Program Files\Common Files\Adobe\Adobe Desktop Common\RemoteComponents\UPI\UnifiedPluginInstallerAgent\UnifiedPluginInstallerAgent.exe"
+set "ADOBE_COMMON=%CommonProgramFiles%"
+if defined CommonProgramW6432 set "ADOBE_COMMON=%CommonProgramW6432%"
+set "UPIA=%ADOBE_COMMON%\Adobe\Adobe Desktop Common\RemoteComponents\UPI\UnifiedPluginInstallerAgent\UnifiedPluginInstallerAgent.exe"
 
 if not exist "%UPIA%" (
   echo Adobe UnifiedPluginInstallerAgent was not found.
@@ -18,25 +22,26 @@ if not exist "%UPIA%" (
   exit /b 1
 )
 
-echo Removing Flux Local Edit...
+echo Removing Local Edit...
 echo.
 
-pushd C:\
-"%UPIA%" /remove "Flux Local Edit"
+pushd "%SystemDrive%\" || exit /b 1
+"%UPIA%" /remove "Local Edit"
+set "RC=%ERRORLEVEL%"
 echo.
-"%UPIA%" /list all | findstr /i /c:"Flux Local Edit" >nul
-set "PLUGIN_FOUND=%ERRORLEVEL%"
+if "%RC%"=="0" "%UPIA%" /list all
 popd
 
-if "%PLUGIN_FOUND%"=="0" (
-  echo Adobe still reports Flux Local Edit as installed.
-  echo Check: C:\ProgramData\Adobe\UPI\Log\Upia.log
-  echo Check: C:\ProgramData\Adobe\UPI\Log\EMCL.log
-) else (
-  echo Flux Local Edit is removed.
+if "%RC%"=="0" (
+  echo Adobe reports successful removal of Local Edit.
   echo Restart Photoshop if it was open.
+) else (
+  echo Adobe removal failed with exit code %RC%.
+  echo If this copy was loaded in UXP Developer Tool, unload it there instead.
+  echo Check: "%ProgramData%\Adobe\UPI\Log\Upia.log"
+  echo Check: "%ProgramData%\Adobe\UPI\Log\EMCL.log"
 )
 
 echo.
 pause
-exit /b %PLUGIN_FOUND%
+exit /b %RC%

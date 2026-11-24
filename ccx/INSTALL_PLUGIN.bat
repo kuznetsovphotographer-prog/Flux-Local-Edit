@@ -1,14 +1,18 @@
 @echo off
-setlocal
+setlocal DisableDelayedExpansion
 
+set "LOCAL_EDIT_BAT=%~f0"
 fltmc >nul 2>&1
 if errorlevel 1 (
   echo Requesting administrator permission...
-  powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -Verb RunAs -WorkingDirectory 'C:\'"
-  exit /b
+  powershell -NoProfile -Command "try { Start-Process -FilePath $env:LOCAL_EDIT_BAT -Verb RunAs -WorkingDirectory ($env:SystemDrive + '\') -ErrorAction Stop } catch { Write-Error $_; exit 1 }"
+  if errorlevel 1 exit /b 1
+  exit /b 0
 )
 
-set "UPIA=C:\Program Files\Common Files\Adobe\Adobe Desktop Common\RemoteComponents\UPI\UnifiedPluginInstallerAgent\UnifiedPluginInstallerAgent.exe"
+set "ADOBE_COMMON=%CommonProgramFiles%"
+if defined CommonProgramW6432 set "ADOBE_COMMON=%CommonProgramW6432%"
+set "UPIA=%ADOBE_COMMON%\Adobe\Adobe Desktop Common\RemoteComponents\UPI\UnifiedPluginInstallerAgent\UnifiedPluginInstallerAgent.exe"
 set "CCX=%~dp0com.local.photoshop.flux-local-edit_PS.ccx"
 
 if not exist "%UPIA%" (
@@ -21,31 +25,31 @@ if not exist "%UPIA%" (
 
 if not exist "%CCX%" (
   echo Plugin package was not found next to this installer:
-  echo %CCX%
+  echo "%CCX%"
   echo.
   pause
   exit /b 1
 )
 
-echo Installing Flux Local Edit...
+echo Installing Local Edit 0.4.0. Close Photoshop before installing.
 echo.
 
-pushd C:\
+pushd "%SystemDrive%\" || exit /b 1
 "%UPIA%" /install "%CCX%"
+set "RC=%ERRORLEVEL%"
 echo.
-"%UPIA%" /list all | findstr /i /c:"Flux Local Edit" >nul
-set "PLUGIN_FOUND=%ERRORLEVEL%"
+if "%RC%"=="0" "%UPIA%" /list all
 popd
 
-if "%PLUGIN_FOUND%"=="0" (
-  echo Flux Local Edit is installed.
-  echo Restart Photoshop, then open Plugins ^> Flux Local Edit ^> Flux Local Edit.
+if "%RC%"=="0" (
+  echo Adobe reports successful installation.
+  echo Restart Photoshop, then open Plugins ^> Local Edit.
 ) else (
-  echo Adobe did not confirm the installation.
-  echo Check: C:\ProgramData\Adobe\UPI\Log\Upia.log
-  echo Check: C:\ProgramData\Adobe\UPI\Log\EMCL.log
+  echo Adobe installation failed with exit code %RC%.
+  echo Check: "%ProgramData%\Adobe\UPI\Log\Upia.log"
+  echo Check: "%ProgramData%\Adobe\UPI\Log\EMCL.log"
 )
 
 echo.
 pause
-exit /b %PLUGIN_FOUND%
+exit /b %RC%

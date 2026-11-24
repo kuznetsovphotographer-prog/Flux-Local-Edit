@@ -22,13 +22,13 @@
 
 ### Обычный Photoshop с Creative Cloud
 
-1. Скачайте [com.local.photoshop.flux-local-edit_PS.ccx](../ccx/com.local.photoshop.flux-local-edit_PS.ccx). На странице файла GitHub нажмите кнопку скачивания raw-файла. Не сохраняйте HTML-страницу вместо CCX.
+1. Скачайте [com.local.photoshop.flux-local-edit_PS.ccx](https://github.com/kuznetsovphotographer-prog/Flux-Local-Edit/releases/download/v0.2.2/com.local.photoshop.flux-local-edit_PS.ccx) из релиза 0.2.2.
 2. Сохраните открытые документы и закройте Photoshop.
 3. Дважды щёлкните CCX. Подтвердите установку в Creative Cloud Desktop. [Официальная установка Adobe](https://developer.adobe.com/uxp/guides/how-to/distribution/install/).
 4. Запустите Photoshop заново.
 5. Откройте **Подключаемые модули → Flux Local Edit → Flux Local Edit**. В английском интерфейсе: **Plugins → Flux Local Edit → Flux Local Edit**.
 
-Если двойной щелчок не помог, скачайте весь репозиторий через **Code → Download ZIP**, распакуйте его и запустите `ccx/INSTALL_PLUGIN.bat`. Файл CCX должен лежать рядом с BAT. Скрипт использует официальный установщик Adobe, запрашивает права администратора и запускает его из `C:\`. Creative Cloud и UPIA всё равно должны быть установлены. Этот BAT не является установщиком для portable-сборки.
+Если двойной щелчок не помог, скачайте `INSTALL_PLUGIN.bat` со [страницы релиза 0.2.2](https://github.com/kuznetsovphotographer-prog/Flux-Local-Edit/releases/tag/v0.2.2) и запустите. Файл CCX должен лежать рядом с BAT. Скрипт использует официальный установщик Adobe, запрашивает права администратора и запускает его из `C:\`. Creative Cloud и UPIA всё равно должны быть установлены. Этот BAT не является установщиком для portable-сборки.
 
 После установки через UPIA тоже полностью перезапустите Photoshop. Одна надпись Installed ещё не подтверждает, что нужная копия Photoshop увидела панель.
 

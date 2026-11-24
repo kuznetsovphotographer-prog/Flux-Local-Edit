@@ -1,25 +1,27 @@
 (function () {
-  let validatedBaseUrl = "";
-
-  async function validateFillInstallation(client, baseUrl, logger) {
-    if (validatedBaseUrl === baseUrl) return;
+  async function validateFillInstallation(client, cache, logger) {
+    if (cache && cache.fillRequirements) return cache.fillRequirements;
     logger.info("Validating FLUX.1 Fill nodes and exact model filenames.");
     const objectInfo = await client.getObjectInfo();
-    await globalThis.FluxLocalEditFillWorkflowMapper.validateRequirements(objectInfo);
-    validatedBaseUrl = baseUrl;
-    logger.info("FLUX.1 Fill nodes and models are available.");
+    const requirements = await globalThis.FluxLocalEditFillWorkflowMapper.validateRequirements(objectInfo);
+    if (cache) cache.fillRequirements = requirements;
+    if (requirements.advanced) logger.info("FLUX.1 Fill: masked prefill and ComfyUI color match are available.");
+    else logger.warn(`FLUX.1 Fill: using core nodes, without masked prefill or ComfyUI color match. Missing: ${requirements.missingInpaintNodes.join(", ")}.`);
+    return requirements;
   }
 
   async function run(context) {
     const settings = context.settings;
     const logger = context.logger;
     const token = context.cancelToken;
+    const ps = globalThis.FluxLocalEditFillPhotoshop;
+    const mapper = globalThis.FluxLocalEditFillWorkflowMapper;
     let session = null;
     let placed = false;
     let downloaded = null;
 
     try {
-      session = context.prepared ? context.prepared.session : await globalThis.FluxLocalEditFillPhotoshop.exportFillAssets(settings, logger);
+      session = context.prepared ? context.prepared.session : await ps.exportFillAssets(settings, logger);
       context.throwIfCancelled(token);
       context.updateSelectionHint({
         width: session.contextWidth,
@@ -35,18 +37,13 @@
       const version = stats && stats.system && stats.system.comfyui_version || "unknown";
       logger.info(`Connected to ComfyUI ${version}.`);
       if (context.setStage) context.setStage("Validate Fill workflow");
-      await validateFillInstallation(client, settings.comfyUrl, logger);
+      const requirements = await validateFillInstallation(client, context.referenceCache, logger);
       context.throwIfCancelled(token);
 
-      const placeholder = await globalThis.FluxLocalEditFillWorkflowMapper.patchWorkflow({
-        imageName: "__fill_context__.png",
-        maskName: "__fill_mask__.png",
-        prompt: settings.prompt,
-        seed: settings.seed
-      });
-      logger.info(`Using seed ${placeholder.seed}.`);
+      const seed = mapper.normalizeSeed(settings.seed);
+      logger.info(`Using seed ${seed}.`);
       if (context.shouldRecordAction) {
-        await context.recordAction(settings, placeholder.seed, "fill");
+        await context.recordAction(settings, seed, "fill");
       }
 
       if (context.setStage) context.setStage("Upload Fill region and mask");
@@ -57,11 +54,13 @@
       context.throwIfCancelled(token);
       logger.info(`Uploaded Fill mask: ${maskUpload.imageName}.`);
 
-      const patched = await globalThis.FluxLocalEditFillWorkflowMapper.patchWorkflow({
+      const patched = await mapper.patchWorkflow({
         imageName: contextUpload.imageName,
         maskName: maskUpload.imageName,
         prompt: settings.prompt,
-        seed: placeholder.seed
+        seed,
+        profile: session,
+        advanced: requirements.advanced
       });
       context.throwIfCancelled(token);
 
@@ -77,11 +76,11 @@
       downloaded = await client.downloadImage(result.image);
       context.throwIfCancelled(token);
       logger.info(`Downloaded Fill result: ${downloaded.file.name}.`);
-      if (context.setStage) context.setStage("Place and group Fill result");
-      await globalThis.FluxLocalEditFillPhotoshop.placeFillResult(downloaded.file, session, logger, () => context.throwIfCancelled(token));
+      if (context.setStage) context.setStage("Blend and place Fill result");
+      await ps.placeFillResult(downloaded.file, session, logger, () => context.throwIfCancelled(token));
       placed = true;
       try { context.setPreview(downloaded); } catch (error) { logger.warn(`Layer placed; preview unavailable: ${error.message}`); }
-      logger.info("Placed one Fill layer with the original Photoshop selection as its layer mask.");
+      logger.info("Placed one Fill layer with an editable mask.");
       return { mode: "fill", seed: patched.seed, session, downloaded };
     } finally {
       if (downloaded) {
@@ -89,19 +88,18 @@
         if (downloaded.file && typeof downloaded.file.delete === "function") await Promise.resolve().then(() => downloaded.file.delete()).catch((error) => logger.warn(error.message));
       }
       if (session && !placed) {
-        await globalThis.FluxLocalEditFillPhotoshop.restoreFillSession(
+        await ps.restoreFillSession(
           session,
           { restoreLayers: true, removeChannel: true },
           logger
         ).catch((error) => logger.warn(`Could not fully restore Fill state: ${error.message || String(error)}`));
       }
+      if (session && !context.prepared) {
+        await ps.deleteTemp(session.contextFile, logger);
+        await ps.deleteTemp(session.maskFile, logger);
+      }
     }
   }
 
-  globalThis.FluxLocalEditFillAdapter = {
-    resetValidationCache() {
-      validatedBaseUrl = "";
-    },
-    run
-  };
+  globalThis.FluxLocalEditFillAdapter = { run };
 })();

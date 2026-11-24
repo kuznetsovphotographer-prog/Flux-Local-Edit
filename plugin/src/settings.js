@@ -8,11 +8,12 @@
     megapixels: 1,
     roundingMultiple: 16,
     editPrompt: EDIT_PROMPT,
-    fillPrompt: ""
+    fillPrompt: "",
+    qwenPrompt: ""
   };
 
   function normalizeMode(value) {
-    return value === "fill" ? "fill" : "edit";
+    return value === "fill" || value === "qwen" ? value : "edit";
   }
 
   function normalize(settings) {
@@ -23,7 +24,8 @@
       megapixels: merged.megapixels,
       roundingMultiple: DEFAULTS.roundingMultiple,
       editPrompt: String(merged.editPrompt == null ? EDIT_PROMPT : merged.editPrompt),
-      fillPrompt: String(merged.fillPrompt == null ? "" : merged.fillPrompt)
+      fillPrompt: String(merged.fillPrompt == null ? "" : merged.fillPrompt),
+      qwenPrompt: String(merged.qwenPrompt == null ? "" : merged.qwenPrompt)
     };
   }
 

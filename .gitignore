@@ -2,3 +2,4 @@ __pycache__/
 *.pyc
 *.partial
 maintenance/qa/
+plugin/scripts/comfyui-path.txt

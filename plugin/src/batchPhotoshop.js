@@ -105,8 +105,20 @@
         const file = await globalThis.Flux2Photoshop.exportSelectionMerged(selection, logger);
         return { file, selection: { ...selection, docId: session.docId, batch: { session, index } } };
       }
+      if (session.mode === "qwen") {
+        // Some surrounding pixels give the editor context; only the saved region remains visible on return.
+        const { contextBounds, width, height } = globalThis.Flux2ImageSizing.computeContextRect(
+          job.bounds, session.documentWidth, session.documentHeight
+        );
+        const file = await globalThis.Flux2Photoshop.exportSelectionMerged(
+          { docId: session.snapshotId, bounds: contextBounds, width, height }, logger
+        );
+        return { file, session: { docId: session.docId, contextBounds, width, height,
+          selectionChannelName: channelName, activeLayerIds: session.activeLayerIds,
+          batch: { session, index } } };
+      }
       const ps = globalThis.FluxLocalEditFillPhotoshop;
-      const fill = await ps.exportFillAssets(settings, logger, { docId: session.snapshotId });
+      const fill = await ps.exportFillAssets(settings, logger, { docId: session.snapshotId, strictMask: session.jobs.length > 1 });
       try {
         await ps.restoreFillSession(fill, { restoreLayers: true, removeChannel: true }, logger);
         return { session: { ...fill, docId: session.docId, selectionChannelName: channelName,
@@ -122,7 +134,8 @@
   // Called within the placement's existing executeAsModal, never starts a nested modal.
   async function attachResult(layer, batch) {
     const { session, index } = batch, doc = validSource(session);
-    layer.name = `Flux ${session.mode === "edit" ? "Edit" : "Fill"} - ${index + 1}`;
+    const label = session.mode === "qwen" ? "Qwen" : session.mode === "edit" ? "Flux Edit" : "Flux Fill";
+    layer.name = `${label} - ${index + 1}`;
     // Move our new layer out of any user group/clipping stack before changing its flags.
     const currentTop = doc.layers[0];
     if (currentTop && currentTop.id !== layer.id) await layer.move(currentTop, constants.ElementPlacement.PLACEBEFORE);
@@ -130,14 +143,14 @@
     // unavailable for an ordinary placed layer. Only release a real clipping mask.
     if (layer.isClippingMask === true) layer.isClippingMask = false;
     if (!session.group) {
-      session.group = await doc.createLayerGroup({ name: `Flux ${session.mode === "edit" ? "Edit" : "Fill"} - ${session.jobs.length} regions`, fromLayers: [layer] });
+      session.group = await doc.createLayerGroup({ name: `${label} - ${session.jobs.length} regions`, fromLayers: [layer] });
       const top = doc.layers[0];
       if (top && top.id !== session.group.id) await session.group.move(top, constants.ElementPlacement.PLACEBEFORE);
     } else await layer.move(session.group, constants.ElementPlacement.PLACEINSIDE);
   }
   async function cleanupAssets(prepared) {
     if (!prepared) return;
-    const files = prepared.session ? [prepared.session.contextFile, prepared.session.maskFile] : [prepared.file];
+    const files = [prepared.file, prepared.session && prepared.session.contextFile, prepared.session && prepared.session.maskFile];
     for (const file of files) if (file && typeof file.delete === "function") await file.delete();
   }
   async function finish(session, logger) {

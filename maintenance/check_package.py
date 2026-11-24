@@ -1,5 +1,6 @@
 """Read-only checks for the locally prepared GitHub publication."""
 import json
+import hashlib
 import re
 import zipfile
 from html.parser import HTMLParser
@@ -47,19 +48,32 @@ def main():
     with zipfile.ZipFile(archive_path) as archive:
         assert archive.testzip() is None
         manifest = json.loads((ROOT / 'plugin/manifest.json').read_text(encoding='utf-8-sig'))
-        if json.loads(archive.read('manifest.json')) != manifest:
-            errors.append('CCX manifest differs from publication source')
-        assert manifest['id'] == 'com.local.photoshop.flux-local-edit'
-        assert manifest['version'] == '0.2.2'
-        for path in (ROOT / 'plugin').rglob('*'):
-            if not path.is_file() or 'tests' in path.parts or path.name == 'manifest.json':
-                continue
-            relative = path.relative_to(ROOT / 'plugin').as_posix()
-            if path.read_bytes() != archive.read(relative):
-                errors.append(f'CCX runtime differs: {relative}')
+        packaged = json.loads(archive.read('manifest.json'))
+        assert packaged['id'] == manifest['id'] == 'com.local.photoshop.flux-local-edit'
+        for version in (manifest['version'], packaged['version']):
+            assert re.fullmatch(r'\d+\.\d+\.\d+', version), version
+        if packaged['version'] == manifest['version']:
+            if packaged != manifest:
+                errors.append('CCX manifest differs from publication source')
+            names = set(archive.namelist())
+            for path in (ROOT / 'plugin').rglob('*'):
+                relative = path.relative_to(ROOT / 'plugin')
+                runtime = relative.parts[0] in {'src', 'workflows', 'scripts', 'icons', 'index.html', 'styles.css'}
+                if not path.is_file() or not runtime or path.name == 'comfyui-path.txt':
+                    continue
+                key = relative.as_posix()
+                if key not in names or path.read_bytes() != archive.read(key):
+                    errors.append(f'CCX runtime differs: {key}')
+        else:
+            # Source-only updates keep the already released installer byte for byte.
+            legacy = {'0.2.2': '42bbe81ab929227f119b95b25ccab5a5c5050974a7717564300be96977407454'}
+            if hashlib.sha256(archive_path.read_bytes()).hexdigest() != legacy.get(packaged['version']):
+                errors.append('The older CCX does not match the verified release')
+            if tuple(map(int, manifest['version'].split('.'))) <= tuple(map(int, packaged['version'].split('.'))):
+                errors.append('An older installer must not have a newer version than the source')
     if errors:
         raise SystemExit('\n'.join(errors))
-    print(f'PASS: {checked} local HTML references, JSON, CCX archive, manifest and runtime integrity, file sizes')
+    print(f'PASS: {checked} local HTML references, JSON, source {manifest["version"]}, CCX {packaged["version"]}, file sizes')
 
 
 if __name__ == '__main__':

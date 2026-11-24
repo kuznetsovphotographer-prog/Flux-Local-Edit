@@ -102,6 +102,94 @@ button {
   margin-left: auto;
 }
 
+.engine-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: -4px 0 2px;
+  min-height: 24px;
+}
+
+.engine-status {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  color: var(--ps-text);
+  font-size: 10px;
+}
+
+#engineStatusText {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.engine-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  margin-right: 7px;
+  border-radius: 50%;
+  background: #858585;
+}
+
+.engine-status[data-state="working"] .engine-dot { background: #e6a84f; }
+.engine-status[data-state="ready"] .engine-dot { background: #62af87; }
+.engine-status[data-state="error"] .engine-dot { background: #d97070; }
+
+.engine-actions {
+  display: flex;
+  flex: 0 0 auto;
+  margin-left: 8px;
+}
+
+.engine-actions .engine-action-wrap {
+  width: 28px;
+  min-width: 28px;
+  max-width: 28px;
+  height: 24px;
+  min-height: 24px;
+  max-height: 24px;
+}
+
+.engine-action-wrap + .engine-action-wrap { margin-left: 6px; }
+.engine-action-wrap .button-visual { height: auto; padding: 0; }
+
+.engine-progress {
+  height: 4px;
+  flex-shrink: 0;
+  margin: 3px 0 7px;
+  border-radius: 2px;
+  background: var(--ps-input-bg);
+  overflow: hidden;
+}
+
+.engine-progress[hidden] { display: none; }
+
+.engine-progress-fill {
+  position: relative;
+  left: 0;
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: var(--ps-blue);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .engine-progress.is-indeterminate .engine-progress-fill { left: 34% !important; }
+}
+
+.engine-icon {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .loader-progress {
   position: absolute;
   left: 0;
@@ -740,8 +828,54 @@ textarea::placeholder {
 }
 
 .reference-zone {
-  height: 130px;
+  height: 105px;
   border: 1px solid transparent;
+}
+
+.reference-list {
+  display: flex;
+  align-items: stretch;
+}
+
+.reference-card {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.reference-card[hidden] {
+  display: none;
+}
+
+.reference-card + .reference-card {
+  margin-left: 8px;
+}
+
+.reference-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.reference-count {
+  font-size: 10px;
+  color: var(--ps-text-muted, #b6b6b6);
+}
+
+.reference-remove {
+  flex: 0 0 auto;
+  margin-left: 5px;
+  padding: 1px 6px;
+  color: var(--ps-text);
+  border: 1px solid var(--ps-button-border);
+  border-radius: var(--ps-radius-control);
+  background: var(--ps-button-bg);
+  cursor: pointer;
+}
+
+.reference-remove:hover,
+.reference-remove:focus-visible {
+  background: var(--ps-button-hover);
 }
 
 .preview-empty,
@@ -777,7 +911,7 @@ textarea::placeholder {
 }
 
 #previewImage,
-#referenceImage {
+.reference-zone img {
   width: 100%;
   height: 100%;
   display: block;
@@ -786,7 +920,7 @@ textarea::placeholder {
 }
 
 #previewImage[hidden],
-#referenceImage[hidden] {
+.reference-zone img[hidden] {
   display: none;
 }
 
@@ -824,7 +958,11 @@ textarea::placeholder {
 }
 
 .reference-name {
-  display: none;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .action-button-wrap {
@@ -854,6 +992,19 @@ textarea::placeholder {
 .action-button-wrap.is-hovered {
   border-color: var(--ps-button-border-hover);
   background: var(--ps-button-hover);
+}
+
+.reference-action-wrap {
+  flex: 0 0 auto;
+  width: 130px;
+  min-width: 130px;
+  max-width: 130px;
+}
+
+.reference-action-wrap .button-visual-label {
+  flex: 0 0 auto;
+  margin-left: 6px;
+  white-space: nowrap;
 }
 
 .action-button-wrap.is-disabled {
@@ -907,6 +1058,10 @@ textarea::placeholder {
   transform: translateX(-2px);
 }
 
+.reference-action-wrap .button-visual {
+  gap: 0;
+}
+
 .button-visual *,
 button > span,
 button > svg {
@@ -938,7 +1093,6 @@ button > svg {
 }
 
 .reference-visual-icon {
-  transform: translateX(-3px);
   stroke: var(--ps-blue);
   stroke-width: 2;
 }

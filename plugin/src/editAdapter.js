@@ -3,7 +3,8 @@
     const settings = context.settings;
     const logger = context.logger;
     const token = context.cancelToken;
-    const selectedReferenceFile = context.referenceFile || null;
+    const references = globalThis.LocalEditReferences;
+    const referenceFiles = references.list(context.referenceFiles ?? context.referenceFile);
     const prompt = globalThis.Flux2WorkflowMapper.combinePrompt(settings.prompt, settings.negativePrompt);
 
     const selection = context.prepared ? context.prepared.selection : await globalThis.Flux2Photoshop.getSolidSelection();
@@ -23,7 +24,7 @@
     if (context.setStage) context.setStage("Validate Klein workflow");
     const workflowPatch = await globalThis.Flux2WorkflowMapper.patchWorkflow({
       imageName: "__placeholder__.png",
-      referenceImageName: selectedReferenceFile ? "__reference_placeholder__.png" : "",
+      referenceImageNames: referenceFiles.map((_, index) => `__reference_${index + 1}__.png`),
       prompt,
       megapixels: settings.megapixels,
       resolutionSteps: 16,
@@ -31,12 +32,12 @@
     });
     context.throwIfCancelled(token);
     logger.info(`Using seed ${workflowPatch.seed}.`);
-    logger.info(selectedReferenceFile ? "Using two-image reference workflow." : "Using single-image workflow.");
+    logger.info(`Using ${referenceFiles.length} additional reference image(s).`);
 
     if (context.shouldRecordAction) {
       await context.recordAction(settings, workflowPatch.seed, "edit");
-      if (selectedReferenceFile) {
-        logger.warn("Reference image is session-only and is not stored in recorded Photoshop Actions.");
+      if (referenceFiles.length) {
+        logger.warn("References are session-only and are not stored in recorded Photoshop Actions.");
       }
     }
 
@@ -49,19 +50,12 @@
     context.throwIfCancelled(token);
     logger.info(`Uploaded to ComfyUI input: ${upload.imageName}.`);
 
-    let referenceUpload = null;
-    if (selectedReferenceFile) {
-      referenceUpload = context.referenceCache && context.referenceCache.imageName
-        ? { imageName: context.referenceCache.imageName }
-        : await client.uploadImage(selectedReferenceFile, "edit-reference");
-      if (context.referenceCache) context.referenceCache.imageName = referenceUpload.imageName;
-      context.throwIfCancelled(token);
-      logger.info(`Uploaded reference image to ComfyUI input: ${referenceUpload.imageName}.`);
-    }
+    if (referenceFiles.length && context.setStage) context.setStage("Upload Klein references");
+    const referenceImageNames = await references.upload(context, client, referenceFiles, "edit-reference");
 
     const patched = await globalThis.Flux2WorkflowMapper.patchWorkflow({
       imageName: upload.imageName,
-      referenceImageName: referenceUpload ? referenceUpload.imageName : "",
+      referenceImageNames,
       prompt,
       megapixels: settings.megapixels,
       resolutionSteps: 16,

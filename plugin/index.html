@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Flux Local Edit</title>
+    <title>Local Edit</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -15,20 +15,20 @@
               id="modeMenuButton"
               class="mode-menu-hitbox"
               type="button"
-              aria-label="Choose mode. Current mode Edit. Model FLUX.2 Klein 9B FP8."
+              aria-label="Choose model. Active model: FLUX.2 Klein 9B FP8."
               aria-haspopup="menu"
               aria-expanded="false"
-              title="Choose Edit or Fill · flux-2-klein-9b-fp8.safetensors"
+              title="Choose model · flux-2-klein-9b-fp8.safetensors"
             ></button>
             <div class="plugin-identity-visual" aria-hidden="true">
               <span class="mode-menu-glyph">☰</span>
               <div class="plugin-identity-copy">
-                <span id="pluginModeName" class="plugin-name">Flux Local Edit · Edit</span>
+                <span id="pluginModeName" class="plugin-name">FLUX.2 Klein</span>
                 <div
                   id="modelIndicator"
                   class="model-indicator"
                   title="flux-2-klein-9b-fp8.safetensors"
-                >Model: FLUX.2 Klein 9B FP8</div>
+                >Image editing · 9B FP8</div>
               </div>
             </div>
           </div>
@@ -49,6 +49,30 @@
           </div>
           <div id="loaderProgress" class="loader-progress" aria-hidden="true"></div>
         </section>
+        <section class="engine-row" aria-label="ComfyUI controls">
+          <div id="engineStatus" class="engine-status" data-state="idle" role="status" aria-live="polite">
+            <span id="engineDot" class="engine-dot" aria-hidden="true"></span>
+            <span id="engineStatusText">Checking ComfyUI…</span>
+          </div>
+          <div class="engine-actions">
+            <div id="preloadWrap" class="action-button-wrap engine-action-wrap" title="Preload the selected model">
+              <button id="preloadBtn" type="button" class="ps-button" aria-label="Preload selected model" title="Preload the selected model"></button>
+              <span class="button-visual" aria-hidden="true">
+                <svg class="engine-icon" viewBox="0 0 16 16"><path d="M8 2v8m-3-3 3 3 3-3M3 10v3h10v-3"/></svg>
+              </span>
+            </div>
+            <div id="freeVramWrap" class="action-button-wrap engine-action-wrap" title="Unload all ComfyUI models when idle">
+              <button id="freeVramBtn" type="button" class="ps-button" aria-label="Free ComfyUI VRAM" title="Unload all ComfyUI models when idle"></button>
+              <span class="button-visual" aria-hidden="true">
+                <svg class="engine-icon" viewBox="0 0 16 16"><path d="M8 10V2M5 5l3-3 3 3M3 10v3h10v-3"/></svg>
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <div id="engineProgress" class="engine-progress" role="progressbar" aria-label="Model preload" hidden>
+          <div id="engineProgressFill" class="engine-progress-fill"></div>
+        </div>
 
         <div id="modeMenu" class="mode-menu" role="menu" hidden>
           <div class="mode-card is-selected" data-mode="edit">
@@ -57,15 +81,15 @@
               data-mode="edit"
               role="menuitemradio"
               aria-checked="true"
-              aria-label="Edit. Model FLUX.2 Klein 9B FP8."
+              aria-label="FLUX.2 Klein 9B FP8, image editing."
               title="flux-2-klein-9b-fp8.safetensors"
               type="button"
             ></button>
             <div class="mode-card-visual" aria-hidden="true">
               <span class="mode-card-indicator"></span>
               <div class="mode-card-copy">
-                <span class="mode-card-title">Flux Local Edit · Edit</span>
-                <span class="mode-card-model">Model: FLUX.2 Klein 9B FP8</span>
+                <span class="mode-card-title">FLUX.2 Klein</span>
+                <span class="mode-card-model">Image editing · 9B FP8</span>
               </div>
             </div>
           </div>
@@ -75,15 +99,33 @@
               data-mode="fill"
               role="menuitemradio"
               aria-checked="false"
-              aria-label="Fill. Model FLUX.1 Fill Dev FP8."
+              aria-label="FLUX.1 Fill Dev FP8, inpainting."
               title="flux1-fill-dev-fp8.safetensors"
               type="button"
             ></button>
             <div class="mode-card-visual" aria-hidden="true">
               <span class="mode-card-indicator"></span>
               <div class="mode-card-copy">
-                <span class="mode-card-title">Flux Local Edit · Fill</span>
-                <span class="mode-card-model">Model: FLUX.1 Fill Dev FP8</span>
+                <span class="mode-card-title">FLUX.1 Fill</span>
+                <span class="mode-card-model">Inpainting · Dev FP8</span>
+              </div>
+            </div>
+          </div>
+          <div class="mode-card" data-mode="qwen">
+            <button
+              class="mode-option mode-card-hitbox"
+              data-mode="qwen"
+              role="menuitemradio"
+              aria-checked="false"
+              aria-label="Qwen Image 2.1 Turbo INT8, image editing."
+              title="qwen_image_2.1_turbo_int8_convrot.safetensors"
+              type="button"
+            ></button>
+            <div class="mode-card-visual" aria-hidden="true">
+              <span class="mode-card-indicator"></span>
+              <div class="mode-card-copy">
+                <span class="mode-card-title">Qwen Image 2.1 Turbo</span>
+                <span class="mode-card-model">Image editing · INT8</span>
               </div>
             </div>
           </div>
@@ -147,50 +189,46 @@
 
         <section id="referencePanel" class="reference-panel section-stack">
           <div class="reference-actions">
-            <div class="action-button-wrap">
+            <div class="action-button-wrap reference-action-wrap">
               <label
                 id="referenceToggle"
                 class="ps-button reference-toggle"
                 tabindex="0"
               >
-                <input id="referenceButton" type="checkbox" class="hidden-checkbox" aria-label="Choose reference image" />
+                <input id="referenceButton" type="checkbox" class="hidden-checkbox" aria-label="Add up to two reference images" />
               </label>
               <span class="button-visual">
                 <svg class="button-visual-icon reference-visual-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
                   <path fill="none" stroke="currentColor" d="M13.8 10.2a4 4 0 0 0-5.6 0l-4 4a4 4 0 1 0 5.6 5.6l1.1-1.1m-.7-4.9a4 4 0 0 0 5.6 0l4-4a4 4 0 0 0-5.6-5.6l-1.1 1.1"></path>
                 </svg>
-                <span class="button-visual-label">Reference:</span>
+                <span class="button-visual-label">Add reference</span>
               </span>
             </div>
 
-            <div id="clearReferenceWrap" class="action-button-wrap" hidden>
-              <button
-                id="clearReferenceBtn"
-                class="ps-button reference-clear"
-                type="button"
-                aria-label="Remove reference"
-                disabled
-              ></button>
-              <span class="button-visual button-visual-remove">
-                <span class="button-visual-label">Remove</span>
-                <svg class="button-visual-icon trash-visual-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
-                  <path fill="none" stroke="currentColor" d="M19 7 18.1 19.1A2 2 0 0 1 16.1 21H7.9a2 2 0 0 1-2-1.9L5 7m5 4v6m4-6v6m1-13V3a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v1M4 7h16"></path>
-                </svg>
-              </span>
+            <span id="referenceCount" class="reference-count" role="status">0 / 2 attached</span>
+          </div>
+          <div class="reference-list">
+            <div id="referenceCard1" class="reference-card" hidden>
+              <div class="reference-card-head">
+                <span id="referenceName1" class="reference-name"></span>
+                <button type="button" class="reference-remove" data-remove-reference="0" aria-label="Remove reference 1">×</button>
+              </div>
+              <div class="reference-zone">
+                <img id="referenceImage1" alt="Reference 1 preview" hidden />
+                <div id="referenceEmpty1" class="reference-empty" hidden>Preview unavailable</div>
+              </div>
+            </div>
+            <div id="referenceCard2" class="reference-card" hidden>
+              <div class="reference-card-head">
+                <span id="referenceName2" class="reference-name"></span>
+                <button type="button" class="reference-remove" data-remove-reference="1" aria-label="Remove reference 2">×</button>
+              </div>
+              <div class="reference-zone">
+                <img id="referenceImage2" alt="Reference 2 preview" hidden />
+                <div id="referenceEmpty2" class="reference-empty" hidden>Preview unavailable</div>
+              </div>
             </div>
           </div>
-
-          <div
-            id="referenceZone"
-            class="reference-zone"
-            hidden
-          >
-            <img id="referenceImage" alt="Reference image preview" hidden />
-            <div id="referenceEmpty" class="reference-empty">
-              <span>Preview unavailable. Reference will still be used.</span>
-            </div>
-          </div>
-          <div id="referenceName" class="reference-name"></div>
         </section>
       </div>
     </main>
@@ -198,8 +236,12 @@
     <script src="src/logger.js"></script>
     <script src="src/imageSizing.js"></script>
     <script src="src/settings.js"></script>
+    <script src="src/references.js"></script>
+    <script src="src/comfyEngine.js"></script>
     <script src="src/workflowMapper.js"></script>
+    <script src="src/fillBlend.js"></script>
     <script src="src/fillWorkflowMapper.js"></script>
+    <script src="src/qwenWorkflowMapper.js"></script>
     <script src="src/comfyClient.js"></script>
     <script src="src/photoshop.js"></script>
     <script src="src/fillPhotoshop.js"></script>
@@ -208,6 +250,7 @@
     <script src="src/batchRunner.js"></script>
     <script src="src/editAdapter.js"></script>
     <script src="src/fillAdapter.js"></script>
+    <script src="src/qwenAdapter.js"></script>
     <script src="src/main.js"></script>
   </body>
 </html>

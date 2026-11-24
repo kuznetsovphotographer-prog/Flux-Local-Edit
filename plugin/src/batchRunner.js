@@ -9,6 +9,11 @@
     let phase = "Capture selection", currentRegion = 0;
     try {
       session = await ps.capture(mode, check);
+      if (context.ensureEngine) {
+        phase = "Connect to local ComfyUI";
+        await context.ensureEngine(check);
+        check();
+      }
       context.logger.info(`Found ${session.jobs.length} separate region(s). Processing sequentially from one frozen source.`);
       for (let index = 0; index < session.jobs.length; index++) {
         check();

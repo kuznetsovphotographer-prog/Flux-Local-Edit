@@ -298,9 +298,13 @@
       const layer = await placeResultFileIntoSelection(resultFile, targetDoc, layerName, selection.bounds, logger);
       try {
         check();
+        // placeResultFileIntoSelection restores the exact rectangle after fitting the output.
+        await globalThis.FluxLocalEditFillPhotoshop.createLayerMaskFromSelection();
+        check();
         if (selection.batch) await globalThis.FluxLocalEditBatchPhotoshop.attachResult(layer, selection.batch);
         check();
         await activateDocumentById(selection.docId);
+        logger && logger.info("Applied the original rectangular selection as the Klein layer mask.");
         return layer;
       } catch (error) {
         await Promise.resolve().then(() => layer.delete()).catch(() => null);

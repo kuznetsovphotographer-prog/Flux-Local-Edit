@@ -6,9 +6,11 @@
 
   let logger;
   let currentPreviewUrl = null;
-  let referenceFile = null;
-  let referencePreviewUrl = null;
+  const attachedReferences = [];
+  let isChoosingReference = false;
   let isGenerating = false;
+  let isEngineBusy = false;
+  let engineProgressTimer = null;
   let currentClient = null;
   let currentPromptId = "";
   let cancelToken = null;
@@ -16,7 +18,8 @@
   let activeMode = "edit";
   let modePrompts = {
     edit: globalThis.FluxLocalEditSettings.DEFAULTS.editPrompt,
-    fill: globalThis.FluxLocalEditSettings.DEFAULTS.fillPrompt
+    fill: globalThis.FluxLocalEditSettings.DEFAULTS.fillPrompt,
+    qwen: globalThis.FluxLocalEditSettings.DEFAULTS.qwenPrompt
   };
 
   const MEGAPIXELS_MIN = 1;
@@ -24,20 +27,33 @@
   const MEGAPIXELS_PRECISION = 100;
   const ACTION_METHOD_NAMES = {
     edit: "fluxLocalEditGenerateEditActionHandler",
-    fill: "fluxLocalEditGenerateFillActionHandler"
+    fill: "fluxLocalEditGenerateFillActionHandler",
+    qwen: "fluxLocalEditGenerateQwenActionHandler"
   };
   const MODE_METADATA = {
     edit: {
       label: "Edit",
+      displayName: "FLUX.2 Klein",
+      displayDetail: "Image editing · 9B FP8",
       modelLabel: "FLUX.2 Klein 9B FP8",
       modelFile: "flux-2-klein-9b-fp8.safetensors",
       placeholder: "Type your text prompt here to generate a new layer..."
     },
     fill: {
       label: "Fill",
+      displayName: "FLUX.1 Fill",
+      displayDetail: "Inpainting · Dev FP8",
       modelLabel: "FLUX.1 Fill Dev FP8",
       modelFile: "flux1-fill-dev-fp8.safetensors",
       placeholder: "Optional: describe the change, or leave blank to fill from surroundings."
+    },
+    qwen: {
+      label: "Qwen",
+      displayName: "Qwen Image 2.1 Turbo",
+      displayDetail: "Image editing · INT8",
+      modelLabel: "Qwen Image 2.1 Turbo INT8",
+      modelFile: "qwen_image_2.1_turbo_int8_convrot.safetensors",
+      placeholder: "Describe the edit. References are <image2> and <image3>."
     }
   };
   const DIRECT_REFERENCE_EXTENSIONS = ["png", "jpg", "jpeg", "jpe", "jfif", "webp", "gif", "bmp"];
@@ -454,7 +470,7 @@
     const mode = globalThis.FluxLocalEditSettings.normalizeMode(
       forcedMode || source.mode || source.activeMode || activeMode
     );
-    const promptKey = mode === "fill" ? "fillPrompt" : "editPrompt";
+    const promptKey = `${mode}Prompt`;
     const hasDirectPrompt = Object.prototype.hasOwnProperty.call(source, "prompt");
     const prompt = hasDirectPrompt
       ? source.prompt
@@ -572,7 +588,8 @@
     const triggerBounds = trigger.getBoundingClientRect();
     menu.style.top = `${Math.round(triggerBounds.bottom - panelBounds.top + 6)}px`;
     menu.style.left = `${Math.max(0, Math.round(triggerBounds.left - panelBounds.left))}px`;
-    menu.style.width = `${Math.max(154, Math.round(triggerBounds.width))}px`;
+    const available = Math.floor(panelBounds.right - triggerBounds.left);
+    menu.style.width = `${Math.max(154, Math.min(available, Math.max(208, Math.round(triggerBounds.width))))}px`;
   }
 
   function closeModeMenu() {
@@ -608,17 +625,17 @@
     const modeButton = $("modeMenuButton");
     const prompt = $("promptInput");
     const referencePanel = $("referencePanel");
-    if (modeName) modeName.textContent = `Flux Local Edit · ${metadata.label}`;
+    if (modeName) modeName.textContent = metadata.displayName;
     if (model) {
-      model.textContent = `Model: ${metadata.modelLabel}`;
+      model.textContent = metadata.displayDetail;
       model.title = metadata.modelFile;
       model.setAttribute("aria-label", `Model ${metadata.modelLabel}; file ${metadata.modelFile}`);
     }
     if (modeButton) {
-      modeButton.title = `Choose Edit or Fill · ${metadata.modelFile}`;
+      modeButton.title = `Choose model · ${metadata.modelFile}`;
       modeButton.setAttribute(
         "aria-label",
-        `Choose mode. Current mode ${metadata.label}. Model ${metadata.modelLabel}. File ${metadata.modelFile}.`
+        `Choose model. Active model: ${metadata.modelLabel}. File ${metadata.modelFile}.`
       );
     }
     if (prompt) {
@@ -678,7 +695,8 @@
     activeMode = merged.activeMode;
     modePrompts = {
       edit: merged.editPrompt,
-      fill: merged.fillPrompt
+      fill: merged.fillPrompt,
+      qwen: merged.qwenPrompt
     };
     setMegapixelsValue(merged.megapixels);
     updateModeUi();
@@ -692,7 +710,8 @@
       megapixels: hasPanelDom() ? getMegapixelsValue() : globalThis.FluxLocalEditSettings.DEFAULTS.megapixels,
       roundingMultiple: 16,
       editPrompt: modePrompts.edit,
-      fillPrompt: modePrompts.fill
+      fillPrompt: modePrompts.fill,
+      qwenPrompt: modePrompts.qwen
     });
   }
 
@@ -750,6 +769,7 @@
     const modeButton = $("modeMenuButton");
     const modeTrigger = $("modeTriggerWrap");
     isGenerating = isBusy;
+    updateEngineControls();
     if (modeButton) modeButton.disabled = isBusy;
     if (modeTrigger) modeTrigger.classList.toggle("is-disabled", isBusy);
     if (isBusy) {
@@ -806,29 +826,18 @@
 
   function setReferenceControlsBusy(isBusy) {
     const toggle = $("referenceToggle");
-    const toggleWrap = toggle && toggle.parentElement;
     const checkbox = $("referenceButton");
-    const clearButton = $("clearReferenceBtn");
-    const clearWrap = $("clearReferenceWrap");
-    const zone = $("referenceZone");
-    if (checkbox) {
-      checkbox.disabled = isBusy;
-    }
+    const unavailable = isBusy || isChoosingReference || attachedReferences.length >= globalThis.LocalEditReferences.LIMIT;
+    if (checkbox) checkbox.disabled = unavailable;
     if (toggle) {
-      toggle.classList.toggle("is-disabled", isBusy);
+      toggle.classList.toggle("is-disabled", unavailable);
+      toggle.parentElement.classList.toggle("is-disabled", unavailable);
+      toggle.setAttribute("aria-disabled", String(unavailable));
+      toggle.tabIndex = unavailable ? -1 : 0;
     }
-    if (toggleWrap) {
-      toggleWrap.classList.toggle("is-disabled", isBusy);
-    }
-    if (clearButton) {
-      clearButton.disabled = isBusy || !referenceFile;
-    }
-    if (clearWrap) {
-      clearWrap.classList.toggle("is-disabled", isBusy || !referenceFile);
-    }
-    if (zone) {
-      zone.setAttribute("aria-disabled", "true");
-    }
+    document.querySelectorAll("[data-remove-reference]").forEach((button) => {
+      button.disabled = isBusy || isChoosingReference;
+    });
   }
 
   function updatePromptReferenceState() {
@@ -845,117 +854,80 @@
     }
   }
 
-  function setReferenceEmptyLabel(text) {
-    const empty = $("referenceEmpty");
-    const label = empty && empty.querySelector("span");
-    if (label) {
-      label.textContent = text;
-    }
-  }
-
   function updateReferencePreview() {
-    const checkbox = $("referenceButton");
-    const image = $("referenceImage");
-    const empty = $("referenceEmpty");
-    const name = $("referenceName");
-    const clearButton = $("clearReferenceBtn");
-    const clearWrap = $("clearReferenceWrap");
-    const zone = $("referenceZone");
-
-    if (!image || !empty || !name || !clearButton || !clearWrap || !zone) {
-      return;
-    }
-
-    const hasReference = Boolean(referenceFile);
-    clearButton.disabled = !hasReference || isGenerating;
-    clearWrap.hidden = !hasReference;
-    clearWrap.classList.toggle("is-disabled", !hasReference || isGenerating);
-    zone.hidden = !hasReference;
-    if (checkbox) {
-      checkbox.checked = hasReference;
-      checkbox.setAttribute("aria-checked", hasReference ? "true" : "false");
-    }
-    updatePromptReferenceState();
-    zone.setAttribute("aria-disabled", "true");
-
-    if (hasReference) {
-      name.textContent = referenceFile.displayName || referenceFile.name || "Reference image";
-      setReferenceEmptyLabel("Preview unavailable. Reference will still be used.");
-
-      if (referencePreviewUrl) {
-        image.onload = () => {
+    const count = $("referenceCount");
+    if (!count) return;
+    const limit = globalThis.LocalEditReferences.LIMIT;
+    count.textContent = `${attachedReferences.length} / ${limit} attached`;
+    for (let index = 0; index < limit; index++) {
+      const slot = index + 1;
+      const reference = attachedReferences[index];
+      const card = $(`referenceCard${slot}`);
+      const name = $(`referenceName${slot}`);
+      const image = $(`referenceImage${slot}`);
+      const empty = $(`referenceEmpty${slot}`);
+      card.hidden = !reference;
+      image.onload = null;
+      image.onerror = null;
+      const filename = reference && (reference.file.displayName || reference.file.name || "Image");
+      name.textContent = reference ? `Reference ${slot}: ${filename}` : "";
+      name.title = filename || "";
+      if (reference && reference.url) {
+        image.onload = () => { image.hidden = false; empty.hidden = true; };
+        image.onerror = () => { image.hidden = true; empty.hidden = false; };
+        if (image.getAttribute("src") !== reference.url) {
           image.hidden = false;
           empty.hidden = true;
-        };
-        image.onerror = () => {
-          image.hidden = true;
-          empty.hidden = false;
-        };
-        image.hidden = false;
-        empty.hidden = true;
-        image.src = referencePreviewUrl;
+          image.src = reference.url;
+        }
       } else {
         image.removeAttribute("src");
         image.hidden = true;
-        empty.hidden = false;
+        empty.hidden = !reference;
       }
-    } else {
-      image.onload = null;
-      image.onerror = null;
-      image.removeAttribute("src");
-      image.hidden = true;
-      setReferenceEmptyLabel("Preview unavailable. Reference will still be used.");
-      empty.hidden = false;
-      name.textContent = "";
     }
+    updatePromptReferenceState();
+    setReferenceControlsBusy(isGenerating || activeMode === "fill");
   }
 
-  async function setReferenceFile(file) {
-    if (!file) {
-      return;
-    }
-
-    if (referencePreviewUrl) {
-      URL.revokeObjectURL(referencePreviewUrl);
-      referencePreviewUrl = null;
-    }
-
-    const sourceExtension = getFileExtension(file);
-    referenceFile = await prepareReferenceFile(file);
-    referencePreviewUrl = sourceExtension === "webp"
-      ? await makeWebpPreviewUrl(file)
-      : await makeImageObjectUrl(referenceFile);
-    updateReferencePreview();
-    const conversionNote = referenceFile.convertedFrom ? ` Converted from ${referenceFile.convertedFrom.toUpperCase()} to PNG.` : "";
-    getLogger().info(`Reference image selected: ${referenceFile.displayName || referenceFile.name || "image"}.${conversionNote}`);
-  }
-
-  function clearReferenceFile() {
-    if (referencePreviewUrl) {
-      URL.revokeObjectURL(referencePreviewUrl);
-    }
-    referenceFile = null;
-    referencePreviewUrl = null;
+  function removeReference(index) {
+    if (isGenerating || isChoosingReference || !attachedReferences[index]) return;
+    const [removed] = attachedReferences.splice(index, 1);
+    if (removed.url) URL.revokeObjectURL(removed.url);
     closeMegapixelsMenu();
     updateReferencePreview();
-    const input = $("promptInput");
-    if (input) {
-      input.focus();
-    }
-    getLogger().info("Reference image removed. Single-image workflow will be used.");
+    $("referenceToggle").focus();
   }
 
   async function handleChooseReference() {
+    const remaining = globalThis.LocalEditReferences.LIMIT - attachedReferences.length;
+    if (!remaining || isGenerating || isChoosingReference || activeMode === "fill") return;
+    isChoosingReference = true;
+    setReferenceControlsBusy(true);
     try {
-      const picked = await fs.getFileForOpening({
-        allowMultiple: false
-      });
-      const file = Array.isArray(picked) ? picked[0] : picked;
-      if (file) {
-        await setReferenceFile(file);
+      const picked = await fs.getFileForOpening({ allowMultiple: remaining > 1 });
+      const files = Array.isArray(picked) ? picked.filter(Boolean) : picked ? [picked] : [];
+      if (!files.length) return;
+      if (files.length > remaining) throw new Error(`Select at most ${remaining} more reference images.`);
+      const errors = [];
+      for (const file of files) {
+        try {
+          const prepared = await prepareReferenceFile(file);
+          let url = null;
+          try {
+            url = getFileExtension(file) === "webp" ? await makeWebpPreviewUrl(file) : await makeImageObjectUrl(prepared);
+          } catch (error) { getLogger().warn(`Reference preview unavailable: ${error.message || error}`); }
+          attachedReferences.push({ file: prepared, url });
+        } catch (error) { errors.push(error.message || String(error)); }
       }
+      if (errors.length) throw new Error(errors.join(" "));
+      refreshSelectionHint();
     } catch (error) {
-      getLogger().error(`Could not choose reference image: ${error.message || String(error)}`);
+      $("sizeHint").textContent = error.message || String(error);
+      getLogger().error(`Could not attach reference: ${error.message || error}`);
+    } finally {
+      isChoosingReference = false;
+      updateReferencePreview();
     }
   }
 
@@ -973,6 +945,12 @@
       sizeHint.textContent =
         `Fill context ${info.contextWidth} x ${info.contextHeight}px; render ${info.targetWidth} x ${info.targetHeight}px ` +
         `(${Number(info.targetMegapixels).toFixed(2)} MP). Original selection becomes the layer mask.`;
+      updateMegapixelsReadout(settings);
+      return;
+    }
+    if (mode === "qwen") {
+      const target = globalThis.FluxLocalEditQwenWorkflowMapper.targetSize(selection.width, selection.height, settings.megapixels);
+      sizeHint.textContent = `Qwen context ${selection.width} x ${selection.height}px; render ${target.width} x ${target.height}px. Original selection becomes the layer mask.`;
       updateMegapixelsReadout(settings);
       return;
     }
@@ -1064,6 +1042,14 @@
   }
 
   async function runGenerate(options = {}) {
+    if (isEngineBusy) {
+      if (options.allowStop) return;
+      throw new Error("Wait for the ComfyUI model operation to finish.");
+    }
+    if (isChoosingReference) {
+      if (options.allowStop) return;
+      throw new Error("Finish adding references before generating.");
+    }
     if (isGenerating) {
       if (options.allowStop) {
         await handleStop();
@@ -1081,9 +1067,7 @@
       activeMode = requestedMode;
       updateModeUi();
     }
-    const selectedReferenceFile = requestedMode === "edit"
-      ? options.referenceFile === undefined ? referenceFile : options.referenceFile
-      : null;
+    const referenceFiles = requestedMode === "fill" ? [] : attachedReferences.map(({ file }) => file);
     if (hasPanelDom() && !options.settings) {
       saveCurrentSettings();
     }
@@ -1100,7 +1084,8 @@
     try {
       const adapters = {
         edit: globalThis.FluxLocalEditEditAdapter,
-        fill: globalThis.FluxLocalEditFillAdapter
+        fill: globalThis.FluxLocalEditFillAdapter,
+        qwen: globalThis.FluxLocalEditQwenAdapter
       };
       const adapter = adapters[requestedMode];
       if (!adapter || typeof adapter.run !== "function") {
@@ -1109,11 +1094,24 @@
       activeLogger.info(`Starting ${MODE_METADATA[requestedMode].label} with ${MODE_METADATA[requestedMode].modelLabel}.`);
       const result = await globalThis.FluxLocalEditBatchRunner.run({
         settings,
-        referenceFile: selectedReferenceFile,
+        referenceFiles,
         logger: activeLogger,
         cancelToken: token,
         shouldRecordAction: Boolean(options.recordAction),
         throwIfCancelled,
+        async ensureEngine(check) {
+          try {
+            await globalThis.LocalEditComfyEngine.ensureReady(settings.comfyUrl, {
+              check,
+              onStarting() { showEngineStatus("working", "Starting local ComfyUI…"); }
+            });
+            showEngineStatus("ready", "ComfyUI ready");
+          } catch (error) {
+            showEngineStatus(error.kind === "cancelled" ? "idle" : "error",
+              error.kind === "cancelled" ? "Startup wait cancelled" : "ComfyUI unavailable");
+            throw error;
+          }
+        },
         updateSelectionHint: updateSizeHint,
         recordAction: recordGenerateAction,
         onBatchProgress(state) {
@@ -1143,7 +1141,7 @@
         activeLogger.warn("Generation stopped by user.");
       } else {
         const message = error && error.message || String(error);
-        console.error("Flux Local Edit 0.2.2", error.phase || "", error.stack || error);
+        console.error("Local Edit 0.3.2", error.phase || "", error.stack || error);
         if (/out of memory|cuda.*memory|allocation/i.test(message)) {
           activeLogger.error(`${message} Reduce MP and try again.`);
         } else {
@@ -1163,6 +1161,118 @@
 
   async function handleGenerate() {
     await runGenerate({ allowStop: true, recordAction: true });
+  }
+
+  function showEngineStatus(state, message) {
+    const status = $("engineStatus");
+    const label = $("engineStatusText");
+    if (!status || !label) return;
+    status.dataset.state = state;
+    label.textContent = message;
+    status.title = message;
+  }
+
+  function showEngineProgress(visible, percent) {
+    const bar = $("engineProgress");
+    const fill = $("engineProgressFill");
+    if (!bar || !fill) return;
+    const measured = Number.isFinite(percent);
+    const animate = visible && !measured;
+    bar.hidden = !visible;
+    bar.classList.toggle("is-indeterminate", animate);
+    fill.style.width = animate ? "32%" : visible && measured ? `${percent}%` : "";
+    if (animate) {
+      // Photoshop UXP does not consistently implement CSS keyframes.
+      if (engineProgressTimer === null) {
+        const started = Date.now();
+        fill.style.left = "0%";
+        if (!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches)) {
+          engineProgressTimer = setInterval(() => {
+            const step = (Date.now() - started) % 2000 / 1000;
+            fill.style.left = `${Math.round((1 - Math.abs(step - 1)) * 68)}%`;
+          }, 50);
+        }
+      }
+    } else {
+      if (engineProgressTimer !== null) clearInterval(engineProgressTimer);
+      engineProgressTimer = null;
+      fill.style.left = "0%";
+    }
+    if (visible && measured) bar.setAttribute("aria-valuenow", String(Math.round(percent)));
+    else bar.removeAttribute("aria-valuenow");
+  }
+
+  function updateEngineControls() {
+    const disabled = isGenerating || isEngineBusy;
+    for (const [buttonId, wrapId] of [["preloadBtn", "preloadWrap"], ["freeVramBtn", "freeVramWrap"]]) {
+      const button = $(buttonId);
+      const wrap = $(wrapId);
+      if (button) button.disabled = disabled;
+      if (wrap) wrap.classList.toggle("is-disabled", disabled);
+    }
+    const generate = $("generateBtn");
+    if (generate) generate.disabled = isEngineBusy && !isGenerating;
+  }
+
+  async function refreshEngineStatus() {
+    const baseUrl = globalThis.FluxLocalEditSettings.DEFAULTS.comfyUrl;
+    try {
+      const ready = await globalThis.LocalEditComfyEngine.probe(baseUrl);
+      if (!isGenerating && !isEngineBusy && $("engineStatus")?.dataset.state === "idle") {
+        showEngineStatus(ready ? "ready" : "idle", ready ? "ComfyUI ready" : "ComfyUI offline");
+      }
+    } catch (_) {
+      if (!isGenerating && !isEngineBusy) showEngineStatus("error", "Check the ComfyUI connection");
+    }
+  }
+
+  async function handleEngineAction(operation) {
+    if (isGenerating || isEngineBusy || isChoosingReference) return;
+    const mode = activeMode;
+    const model = MODE_METADATA[mode].displayName;
+    const baseUrl = globalThis.FluxLocalEditSettings.DEFAULTS.comfyUrl;
+    const engine = globalThis.LocalEditComfyEngine;
+    const activeLogger = getLogger();
+    isEngineBusy = true;
+    updateEngineControls();
+    try {
+      if (operation === "free") {
+        showEngineStatus("working", "Checking the ComfyUI queue…");
+        const requested = await engine.freeVRAM(baseUrl);
+        showEngineStatus(requested ? "ready" : "idle", requested ? "VRAM release requested" : "ComfyUI offline");
+      } else {
+        showEngineProgress(true);
+        showEngineStatus("working", "Checking local ComfyUI…");
+        await engine.ensureReady(baseUrl, { onStarting() { showEngineStatus("working", "Starting local ComfyUI…"); } });
+        showEngineStatus("working", `Preloading ${model}…`);
+        const client = new globalThis.Flux2ComfyClient.ComfyClient(baseUrl, activeLogger);
+        await engine.preload(mode, client, ({ stage, value, max }) => {
+          if (stage === "sampling") {
+            showEngineProgress(true, value / max * 100);
+            showEngineStatus("working", `Warming up ${model} · ${value}/${max} steps`);
+          } else {
+            showEngineProgress(true);
+            const status = {
+              queued: "Waiting for ComfyUI",
+              loading: "Loading weights",
+              finishing: "Finishing warm-up"
+            }[stage];
+            showEngineStatus("working", `${status} · ${model}`);
+          }
+        });
+        showEngineStatus("ready", `Preloaded: ${model}`);
+      }
+    } catch (error) {
+      const message = error.message || String(error);
+      showEngineStatus("error", message);
+      const hint = $("sizeHint");
+      if (hint) hint.textContent = message;
+      activeLogger.warn(message);
+    } finally {
+      showEngineProgress(false);
+      isEngineBusy = false;
+      updateEngineControls();
+    }
   }
 
   function bindSurfaceHover(control, surface) {
@@ -1222,10 +1332,15 @@
     return actionInfoFromSettings(settings, result && result.seed || settings.seed, "fill");
   };
 
+  globalThis[ACTION_METHOD_NAMES.qwen] = async function fluxLocalEditRecordedQwen(executionContext, info) {
+    const settings = normalizeGenerationSettings(info, "qwen");
+    const result = await runGenerate({ source: "action", mode: "qwen", settings });
+    return actionInfoFromSettings(settings, result && result.seed || settings.seed, "qwen");
+  };
+
   function attachEvents() {
     bindSurfaceHover($("generateBtn"), $("generateBtn").parentElement);
     bindSurfaceHover($("referenceToggle"), $("referenceToggle").parentElement);
-    bindSurfaceHover($("clearReferenceBtn"), $("clearReferenceWrap"));
     bindSurfaceHover($("targetReadout"), document.querySelector(".mp-dropdown"));
     bindSurfaceHover($("modeMenuButton"), $("modeTriggerWrap"));
 
@@ -1248,6 +1363,8 @@
     });
 
     $("generateBtn").addEventListener("click", handleGenerate);
+    $("preloadBtn").addEventListener("click", () => handleEngineAction("preload"));
+    $("freeVramBtn").addEventListener("click", () => handleEngineAction("free"));
     $("generateBtn").addEventListener("mouseenter", updateBusyButtonLabel);
     $("generateBtn").addEventListener("mouseleave", updateBusyButtonLabel);
     $("referenceToggle").addEventListener("click", (event) => {
@@ -1264,7 +1381,9 @@
         }
       }
     });
-    $("clearReferenceBtn").addEventListener("click", clearReferenceFile);
+    document.querySelectorAll("[data-remove-reference]").forEach((button) => {
+      button.addEventListener("click", () => removeReference(Number(button.dataset.removeReference)));
+    });
 
     $("targetReadout").addEventListener("click", (event) => {
       event.stopPropagation();
@@ -1343,6 +1462,7 @@
     updateReferencePreview();
     attachEvents();
     refreshSelectionHint();
-    logger.info("Ready: Flux Local Edit 0.2.2. Choose Edit or Fill, select separate regions, then click Generate.");
+    refreshEngineStatus();
+    logger.info("Ready: Local Edit 0.4.0. Choose a model, select regions, then click Generate.");
   });
 })();

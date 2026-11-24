@@ -47,15 +47,18 @@ async function components() {
   assert.throws(() => r.split(new Uint8Array(9), 3, 3), /No selected/);
 }
 
-function host(mode, failure = "", soft = false) {
+function host(mode, failure = "", soft = false, single = false, nearby = false) {
   let docId = 1, layerId = 1, modal = false, jobsRun = 0, maxInFlight = 0, inFlight = 0;
   const events = [], documents = [], files = new Map();
   const token = { cancelled: false }; const app = { documents, activeDocument: null };
   const check = () => { if (token.cancelled) { const e = new Error("Stopped"); e.kind = "cancelled"; throw e; } };
-  const width = 40, height = 30;
+  const width = mode === "qwen" ? 420 : 40, height = mode === "qwen" ? 300 : 30;
   const selected = new Uint8Array(width * height);
   function rectangle(data, b, value = 255) { for (let y = b.top; y < b.bottom; y++) for (let x = b.left; x < b.right; x++) data[y * width + x] = value; }
-  const rectangles = [{ left: 0, top: 0, right: 3, bottom: 4 }, { left: 14, top: 10, right: 18, bottom: 14 }, { left: 33, top: 24, right: 40, bottom: 30 }];
+  const rectangles = nearby ? [{ left: 4, top: 6, right: 16, bottom: 24 }, { left: 17, top: 6, right: 29, bottom: 24 }]
+    : single ? [{ left: 12, top: 10, right: 24, bottom: 20 }] : mode === "qwen"
+    ? [{ left: 0, top: 0, right: 110, bottom: 23 }, { left: 180, top: 100, right: 190, bottom: 161 }, { left: 330, top: 240, right: 420, bottom: 300 }]
+    : [{ left: 0, top: 0, right: 3, bottom: 4 }, { left: 14, top: 10, right: 18, bottom: 14 }, { left: 33, top: 24, right: 40, bottom: 30 }];
   rectangles.forEach((r) => rectangle(selected, r)); if (soft) selected[0] = 64;
   function boundsOf(data, w) {
     let l = w, t = Infinity, r = 0, b = 0;
@@ -103,10 +106,26 @@ function host(mode, failure = "", soft = false) {
     const original = layer(doc); doc.activeLayers = [original]; documents.push(doc); return doc;
   }
   const source = makeDoc(width, height, selected); app.activeDocument = source;
+  app.open = async (file) => {
+    const doc = makeDoc(file.width, file.height, new Uint8Array(file.width * file.height), "GENERATED");
+    app.activeDocument = doc; return doc;
+  };
   const constants = { SelectionType: { REPLACE: "replace" }, ElementPlacement: { PLACEBEFORE: "before", PLACEINSIDE: "inside" },
     DocumentMode: { RGB: "RGB" }, ChangeMode: {}, BitsPerChannelType: { EIGHT: 8 }, LayerKind: { NORMAL: "normal" }, ResampleMethod: { BICUBIC: "bicubic" } };
   const photoshop = { app, constants, core: { async executeAsModal(fn) { assert(!modal, "Nested executeAsModal"); modal = true; try { return await fn(); } finally { modal = false; } } },
     imaging: {
+      async getPixels({ documentID, sourceBounds, targetSize }) {
+        const doc = documents.find((d) => d.id === documentID), b = sourceBounds;
+        const w = targetSize ? targetSize.width : b.right - b.left, h = targetSize ? targetSize.height : b.bottom - b.top;
+        return { sourceBounds: b, level: 0, imageData: { width: w, height: h, components: 3,
+          async getData() { return new Uint8Array(w * h * 3).fill(doc.sourceVersion === "GENERATED" ? 115 : 100); }, dispose() {} } };
+      },
+      async putPixels({ documentID, imageData, targetBounds }) {
+        if (failure === "seam-write") throw new Error("Synthetic color write failure");
+        assert.notStrictEqual(documentID, source.id, "Never rewrite the original pixels");
+        events.push({ type: "seam-write", first: imageData.data[0], targetBounds });
+        if (failure === "cancel-seam") token.cancelled = true;
+      },
       async getSelection({ documentID, sourceBounds }) {
         if (failure === "capture") throw new Error("Synthetic selection capture failure");
         const doc = documents.find((d) => d.id === documentID), b = sourceBounds, w = b.right - b.left, h = b.bottom - b.top;
@@ -128,6 +147,7 @@ function host(mode, failure = "", soft = false) {
           app.activeDocument.selectionData.fill(0); rectangle(app.activeDocument.selectionData, b);
         }
         if (d._obj === "placeEvent") {
+          events.push({ type: "place", file: d.null._path });
           const l = layer(app.activeDocument); app.activeDocument.activeLayers = [l];
           if (failure === "clipped") l._isClippingMask = true;
         }
@@ -141,6 +161,7 @@ function host(mode, failure = "", soft = false) {
         }
         if (d._obj === "make") {
           app.activeDocument.activeLayers[0].mask = app.activeDocument.selectionData.slice();
+          events.push({ type: "mask" });
           if (failure === "cancel-placement" && jobsRun === 2) token.cancelled = true;
         }
       }
@@ -149,18 +170,32 @@ function host(mode, failure = "", soft = false) {
   };
   const storage = { localFileSystem: { async getTemporaryFolder() { return { async createFile(name) {
     const f = { name, delete() { f.deleted = true; } }; files.set(name, f); return f;
-  } }; }, async createSessionToken() { return "file"; } } };
+  } }; }, async createSessionToken(file) { return file.name || "file"; } } };
   const ctx = base({ require(name) { if (name === "photoshop") return photoshop; if (name === "uxp") return { storage }; throw new Error(name); } });
-  ["imageSizing.js", "selectionRegions.js", "photoshop.js", "fillPhotoshop.js", "batchPhotoshop.js", "batchRunner.js", "editAdapter.js", "fillAdapter.js"].forEach((f) => load(ctx, f));
+  ["imageSizing.js", "selectionRegions.js", "photoshop.js", "fillBlend.js", "fillPhotoshop.js", "batchPhotoshop.js", "batchRunner.js",
+    "references.js", "editAdapter.js", "fillAdapter.js", "qwenWorkflowMapper.js", "qwenAdapter.js"].forEach((f) => load(ctx, f));
   ctx.Flux2WorkflowMapper = { normalizeSeed: (s) => Number(s) || 123, combinePrompt: (p) => p, async patchWorkflow(opts) { return { seed: opts.seed, outputNodeId: "out", prompt: { mode, ...opts } }; } };
-  ctx.FluxLocalEditFillWorkflowMapper = { async validateRequirements() {}, async patchWorkflow(opts) { return { seed: opts.seed, outputNodeId: "out", prompt: { mode, ...opts } }; } };
+  ctx.FluxLocalEditFillWorkflowMapper = { normalizeSeed: (s) => Number(s) || 123,
+    async validateRequirements() { return { advanced: true, missingInpaintNodes: [] }; },
+    async patchWorkflow(opts) { return { seed: opts.seed, outputNodeId: "out", prompt: { mode, ...opts } }; } };
+  function qwenInfo() {
+    const { prompt: graph } = ctx.FluxLocalEditQwenWorkflowMapper.patchWorkflow({ imageName: "fixture.png", seed: 1 });
+    const info = Object.fromEntries(Object.values(graph).map(({ class_type }) => [class_type, { input: { required: {} } }]));
+    for (const [id, key] of [["1", "unet_name"], ["2", "clip_name"], ["3", "vae_name"]]) {
+      info[graph[id].class_type].input.required[key] = [[graph[id].inputs[key]]];
+    }
+    return info;
+  }
   ctx.Flux2ComfyClient = { ComfyClient: class {
-    async testConnection() { return {}; } async getObjectInfo() { return {}; }
+    async testConnection() { return {}; } async getObjectInfo() {
+      if (mode === "qwen") { events.push({ type: "qwen-validate" }); return qwenInfo(); }
+      return {};
+    }
     async uploadImage(file, role) { assert(!file.deleted); events.push({ type: "upload", role }); return { imageName: file.name || `${role}.png` }; }
     async runPrompt(graph) {
       assert.strictEqual(app.activeDocument, source, "Original, not snapshot, must be visible during generation");
       jobsRun++; inFlight++; maxInFlight = Math.max(maxInFlight, inFlight); await Promise.resolve();
-      events.push({ type: "job", seed: graph.seed }); source.sourceVersion = "ALREADY_EDITED";
+      events.push({ type: "job", seed: mode === "qwen" ? graph["9"].inputs.noise_seed : graph.seed, graph }); source.sourceVersion = "ALREADY_EDITED";
       if ((jobsRun === 2 && failure === "error") || (jobsRun === 1 && failure === "first-error")) { inFlight--; throw new Error("Comfy failure"); }
       if (jobsRun === 1 && failure === "first-cancel") token.cancelled = true;
       if (jobsRun === 2 && failure === "cancel") token.cancelled = true;
@@ -168,18 +203,19 @@ function host(mode, failure = "", soft = false) {
       if (jobsRun === 2 && failure === "group") { const group = source.layers.find((l) => l.layers); if (group) await group.delete(); }
       inFlight--; return { image: { filename: "result.png" } };
     }
-    async downloadImage() { return { file: {}, blob: {} }; }
+    async downloadImage() { return { file: { name: "result.png", width, height }, blob: {} }; }
   } };
   const progress = [], previews = []; let records = 0;
-  const context = { settings: { prompt: "remove person", megapixels: 1, seed: 123 }, referenceFile: {}, logger, cancelToken: token,
+  const context = { settings: { prompt: "remove person", megapixels: 1, seed: 123 }, referenceFiles: [{ name: "ref1.png" }, { name: "ref2.png" }], logger, cancelToken: token,
     throwIfCancelled: check, setClient() {}, setPromptId() {}, updateSelectionHint() {}, shouldRecordAction: true,
     async recordAction() { records++; }, onProgress() {}, onBatchProgress: (s) => progress.push(s), setPreview: (p) => previews.push(p) };
   return { ctx, source, rectangles, selected, documents, files, events, progress, previews, context,
-    stats: () => ({ jobsRun, maxInFlight, records }), adapter: mode === "edit" ? ctx.FluxLocalEditEditAdapter : ctx.FluxLocalEditFillAdapter };
+    stats: () => ({ jobsRun, maxInFlight, records }),
+    adapter: { edit: ctx.FluxLocalEditEditAdapter, fill: ctx.FluxLocalEditFillAdapter, qwen: ctx.FluxLocalEditQwenAdapter }[mode] };
 }
 
 async function queues() {
-  for (const mode of ["edit", "fill"]) for (const failure of ["", "error", "cancel", "canvas", "group", ...(mode === "fill" ? ["cancel-placement"] : [])]) {
+  for (const mode of ["edit", "fill", "qwen"]) for (const failure of ["", "error", "cancel", "canvas", "group", "cancel-placement"]) {
     const h = host(mode, failure);
     let result, error;
     try { result = await h.ctx.FluxLocalEditBatchRunner.run(h.context, h.adapter, mode); } catch (e) { error = e; }
@@ -188,23 +224,45 @@ async function queues() {
     else { if (error) throw error; assert.equal(result.completed, 3); }
     assert.equal(h.stats().jobsRun, failure ? 2 : 3);
     assert.equal(h.stats().maxInFlight, 1); assert.equal(h.stats().records, 1);
-    assert.equal(h.events.filter((e) => e.type === "upload" && e.role === "edit-reference").length, mode === "edit" ? 1 : 0);
+    assert.equal(h.events.filter((e) => e.type === "upload" && e.role === "edit-reference").length, mode === "edit" ? 2 : 0);
+    if (mode === "edit") assert(h.events.filter((e) => e.type === "job").every(({ graph }) =>
+      graph.referenceImageNames.join(",") === "ref1.png,ref2.png"));
+    if (mode === "qwen") {
+      assert.equal(h.events.filter((e) => e.type === "upload" && e.role === "qwen-reference").length, 2);
+      assert.equal(h.events.filter((e) => e.type === "qwen-validate").length, 1);
+      const jobs = h.events.filter((e) => e.type === "job");
+      for (const { graph } of jobs) {
+        assert.equal(graph["5"].inputs.prompt, "remove person");
+        assert.deepStrictEqual(plain(graph["5"].inputs["images.image_1"]), ["4", 0]);
+        assert.deepStrictEqual(plain(graph["5"].inputs["images.image_2"]), ["14", 0]);
+        assert.deepStrictEqual(plain(graph["5"].inputs["images.image_3"]), ["15", 0]);
+        assert.equal(graph["14"].inputs.image, "ref1.png");
+        assert.equal(graph["15"].inputs.image, "ref2.png");
+      }
+    }
     assert.equal(h.previews.length, expected);
     assert.equal(h.documents.length, 1, "Frozen snapshot and export duplicates must be closed");
     assert.equal(h.source.channels.length, 0, "Temporary channels must be removed");
     assert.deepStrictEqual(h.source.selectionData, h.selected, "Original multi-selection must be restored");
     assert([...h.files.values()].every((f) => f.deleted), "Export PNGs must be deleted");
-    assert(h.events.filter((e) => e.type === "png").every((e) => e.sourceVersion === "ORIGINAL"), "Later exports must not include previous results");
+    assert(h.events.filter((e) => e.type === "png" && !e.file.includes("fill-blended")).every((e) => e.sourceVersion === "ORIGINAL"), "Later exports must not include previous results");
     if (failure !== "group") {
       const group = h.source.layers.find((l) => l.layers); assert(group); assert.equal(group.layers.length, expected);
-      assert.equal(group.name, `Flux ${mode === "edit" ? "Edit" : "Fill"} - 3 regions`);
+      assert.equal(group.name, `${{ edit: "Flux Edit", fill: "Flux Fill", qwen: "Qwen" }[mode]} - 3 regions`);
       group.layers.forEach((l, i) => {
-        if (mode === "edit") assert.deepStrictEqual(plain(l.bounds), h.rectangles[i], "Edit placement must match original pixels");
-        else { const mask = new Uint8Array(h.selected.length); const b = h.rectangles[i];
-          for (let y = b.top; y < b.bottom; y++) for (let x = b.left; x < b.right; x++) mask[y * 40 + x] = 255;
-          assert.deepStrictEqual(l.mask, mask, "Fill layer mask must contain only this region");
-          assert.deepStrictEqual(plain(l.bounds), { left: 0, top: 0, right: 40, bottom: 30 }, "Fill context alignment");
-        }
+        const mask = new Uint8Array(h.selected.length), b = h.rectangles[i];
+        const w = mode === "qwen" ? 420 : 40, ht = mode === "qwen" ? 300 : 30;
+        for (let y = b.top; y < b.bottom; y++) for (let x = b.left; x < b.right; x++) mask[y * w + x] = 255;
+        if (mode === "fill") {
+          for (let j = 0; j < mask.length; j++) assert(l.mask[j] <= mask[j], "Fill alpha must stay within its own region");
+          assert.equal(l.mask[Math.floor((b.top + b.bottom) / 2) * w + Math.floor((b.left + b.right) / 2)], 255);
+        } else assert.deepStrictEqual(l.mask, mask, `${mode} layer mask must match the exact selection`);
+        const target = mode === "qwen" ? [
+          { left: 0, top: 0, right: 174, bottom: 87 },
+          { left: 116, top: 36, right: 254, bottom: 225 },
+          { left: 266, top: 176, right: 420, bottom: 300 }
+        ][i] : mode === "edit" ? b : { left: 0, top: 0, right: w, bottom: ht };
+        assert.deepStrictEqual(plain(l.bounds), target, "Context placement must match original coordinates");
       });
     }
     const seeds = h.events.filter((e) => e.type === "job").map((e) => e.seed);
@@ -220,6 +278,12 @@ async function shapeValidation() {
   const result = await accepted.ctx.FluxLocalEditBatchRunner.run(accepted.context, accepted.adapter, "fill");
   assert.equal(result.completed, 3);
   assert.equal(accepted.source.layers.find((l) => l.layers).layers[0].mask[0], 64, "Original feather value must survive");
+  const qwen = host("qwen", "", true);
+  qwen.context.referenceFiles = [];
+  const qwenResult = await qwen.ctx.FluxLocalEditBatchRunner.run(qwen.context, qwen.adapter, "qwen");
+  assert.equal(qwenResult.completed, 3);
+  assert.equal(qwen.source.layers.find((l) => l.layers).layers[0].mask[0], 64);
+  assert(qwen.events.filter((e) => e.type === "job").every(({ graph }) => !graph["14"]));
   const single = host("edit"); single.source.selectionData.fill(0);
   for (let y = 2; y < 5; y++) for (let x = 3; x < 6; x++) single.source.selectionData[y * 40 + x] = 255;
   const one = await single.ctx.FluxLocalEditBatchRunner.run(single.context, single.adapter, "edit");
@@ -228,7 +292,7 @@ async function shapeValidation() {
 }
 
 async function firstFailureAndEmpty() {
-  for (const mode of ["edit", "fill"]) for (const failure of ["first-error", "first-cancel"]) {
+  for (const mode of ["edit", "fill", "qwen"]) for (const failure of ["first-error", "first-cancel"]) {
     const h = host(mode, failure);
     await assert.rejects(() => h.ctx.FluxLocalEditBatchRunner.run(h.context, h.adapter, mode));
     assert.equal(h.stats().jobsRun, 1); assert.equal(h.previews.length, 0);
@@ -245,13 +309,13 @@ async function firstFailureAndEmpty() {
 async function synchronousApiRegression() {
   // Photoshop Layer.delete is void. Some native cleanup APIs also expose sync results.
   // Cleanup must work with both return styles and never overwrite the primary error.
-  for (const mode of ["edit", "fill"]) {
+  for (const mode of ["edit", "fill", "qwen"]) {
     const h = host(mode, "transform");
     let failed;
     try { await h.ctx.FluxLocalEditBatchRunner.run(h.context, h.adapter, mode); } catch (error) { failed = error; }
     assert(failed); assert.match(failed.message, /Synthetic alignment failure/);
     assert.doesNotMatch(failed.message, /reading 'catch'/);
-    assert.match(failed.phase, /Place and group/);
+    assert.match(failed.phase, /Place and group|Blend and place/);
     assert.equal(failed.batch.completed, 0);
     assert(h.events.includes("delete-layer"));
     assert.equal(h.source.layers.length, 1); assert.equal(h.source.channels.length, 0);
@@ -262,7 +326,7 @@ async function synchronousApiRegression() {
   const broken = host("edit", "capture");
   await assert.rejects(() => broken.ctx.FluxLocalEditBatchRunner.run(broken.context, broken.adapter, "edit"), /Synthetic selection capture failure/);
   assert.equal(broken.source.channels.length, 0); assert.equal(broken.documents.length, 1);
-  const pluginSources = ["photoshop.js", "fillPhotoshop.js", "batchPhotoshop.js", "editAdapter.js", "fillAdapter.js"];
+  const pluginSources = ["photoshop.js", "fillPhotoshop.js", "batchPhotoshop.js", "editAdapter.js", "fillAdapter.js", "qwenAdapter.js"];
   for (const file of pluginSources) {
     const source = fs.readFileSync(path.join(root, "src", file), "utf8");
     assert.doesNotMatch(source, /\.(?:delete|remove)\(\)\.catch\(/, `${file}: native void API must not be chained to catch`);
@@ -270,7 +334,7 @@ async function synchronousApiRegression() {
 }
 
 async function clippingAndNativeErrorRegression() {
-  for (const mode of ["edit", "fill"]) {
+  for (const mode of ["edit", "fill", "qwen"]) {
     const normal = host(mode);
     const completed = await normal.ctx.FluxLocalEditBatchRunner.run(normal.context, normal.adapter, mode);
     assert.equal(completed.completed, 3);
@@ -283,7 +347,7 @@ async function clippingAndNativeErrorRegression() {
     let error;
     try { await frozen.ctx.FluxLocalEditBatchRunner.run(frozen.context, frozen.adapter, mode); } catch (e) { error = e; }
     assert(error); assert.match(error.message, /Frozen native alignment failure/);
-    assert.match(error.phase, /Place and group/);
+    assert.match(error.phase, /Place and group|Blend and place/);
     assert.equal(error.batch.total, 3); assert.equal(error.batch.completed, 0);
     assert(error.cause && Object.isFrozen(error.cause));
     assert.equal(frozen.documents.length, 1); assert.equal(frozen.source.channels.length, 0);
@@ -291,7 +355,116 @@ async function clippingAndNativeErrorRegression() {
   }
 }
 
+async function openFillSingle() {
+  for (const failure of ["", "seam-write", "cancel-seam"]) {
+    const h = host("fill", failure, false, true);
+    h.context.settings.prompt = " \n ";
+    let recorded;
+    h.context.recordAction = async (settings, seed, mode) => { recorded = { prompt: settings.prompt, seed, mode }; };
+    if (failure === "cancel-seam") {
+      await assert.rejects(() => h.ctx.FluxLocalEditBatchRunner.run(h.context, h.adapter, "fill"), /Stopped/);
+      assert.equal(h.source.layers.length, 1);
+      assert(!h.events.some((event) => event.type === "place"));
+      assert.equal(h.previews.length, 0);
+    } else {
+      assert.equal((await h.ctx.FluxLocalEditBatchRunner.run(h.context, h.adapter, "fill")).completed, 1);
+      const placed = h.source.layers.find((layer) => layer.layers).layers[0];
+      assert.equal(placed.mask[14 * 40 + 16], 255);
+      assert(placed.mask[14 * 40 + 8] > 0, "The blend extends outside the lasso");
+      assert.equal(placed.mask[0], 0);
+      assert.equal(h.previews.length, 1);
+      assert.match(h.events.find((event) => event.type === "place").file, failure ? /^result\.png$/ : /fill-blended/);
+      if (!failure) assert(h.events.some((event) => event.type === "seam-write" && event.first < 115));
+    }
+    assert.deepStrictEqual(recorded, { prompt: " \n ", seed: 123, mode: "fill" });
+    assert.deepStrictEqual(h.source.selectionData, h.selected);
+    assert.equal(h.source.channels.length, 0);
+    assert.equal(h.documents.length, 1);
+    assert([...h.files.values()].every((file) => file.deleted));
+  }
+}
+
+async function engineReadiness() {
+  for (const mode of ["edit", "fill", "qwen"]) {
+    const normal = host(mode);
+    let calls = 0;
+    normal.context.ensureEngine = async (check) => {
+      check();
+      calls++;
+      assert.equal(normal.stats().jobsRun, 0);
+      assert(!normal.events.some((event) => event.type === "upload"));
+    };
+    assert.equal((await normal.ctx.FluxLocalEditBatchRunner.run(normal.context, normal.adapter, mode)).completed, 3);
+    assert.equal(calls, 1, "check readiness once per batch");
+
+    const broken = host(mode);
+    broken.context.ensureEngine = async () => { throw Error("Launcher permission denied"); };
+    await assert.rejects(() => broken.ctx.FluxLocalEditBatchRunner.run(broken.context, broken.adapter, mode),
+      (error) => error.phase === "Connect to local ComfyUI" && error.batch.completed === 0);
+    assert.equal(broken.stats().jobsRun, 0);
+    assert.equal(broken.documents.length, 1);
+    assert.equal(broken.source.channels.length, 0);
+    assert.deepStrictEqual(broken.source.selectionData, broken.selected);
+  }
+}
+
+async function nearbyMasks() {
+  for (const mode of ["edit", "fill", "qwen"]) {
+    const h = host(mode, "", false, false, true);
+    const w = h.source.width;
+    const hole = 12 * w + 8;
+    if (mode === "qwen") h.selected[hole] = h.source.selectionData[hole] = 0;
+    const result = await h.ctx.FluxLocalEditBatchRunner.run(h.context, h.adapter, mode);
+    assert.equal(result.completed, 2);
+    const order = h.events.filter((event) => ["job", "place", "mask"].includes(event.type)).map((event) => event.type);
+    assert.deepStrictEqual(order, ["job", "place", "mask", "job", "place", "mask"]);
+    const [first, second] = h.source.layers.find((layer) => layer.layers).layers;
+    const at = (layer, x) => layer.mask[15 * w + x];
+    assert.equal(at(first, 12), 255);
+    if (mode === "fill") {
+      assert(at(first, 15) > 0 && at(first, 15) < 255);
+      assert(at(second, 17) > 0 && at(second, 17) < 255);
+    } else {
+      assert.equal(at(first, 15), 255);
+      assert.equal(at(second, 17), 255);
+    }
+    assert.equal(at(second, 20), 255);
+    assert.equal(at(first, 16) + at(second, 16), 0, "The one-pixel gap stays intact");
+    if (mode === "qwen") {
+      assert.equal(first.mask[hole], 0, "A hole stays protected");
+      assert.equal(first.mask[hole + 1], 255, "Do not feather the pixels around a Qwen hole");
+    }
+    for (let i = 0; i < first.mask.length; i++) assert(!(first.mask[i] && second.mask[i]), "Adjacent softened masks must never overlap");
+    assert.deepStrictEqual(h.source.selectionData, h.selected);
+  }
+}
+
+async function singleEditMasks() {
+  for (const mode of ["edit", "qwen"]) for (const tall of [false, true]) {
+    const h = host(mode, "", false, true);
+    const w = h.source.width;
+    const box = { left: 36, top: 2, right: 38, bottom: 29 };
+    if (tall) {
+      h.selected.fill(0);
+      for (let y = box.top; y < box.bottom; y++) h.selected.fill(255, y * w + box.left, y * w + box.right);
+      h.source.selectionData.set(h.selected);
+    }
+    assert.equal((await h.ctx.FluxLocalEditBatchRunner.run(h.context, h.adapter, mode)).completed, 1);
+    const result = h.source.layers.find((layer) => layer.layers).layers[0];
+    assert.deepStrictEqual(result.mask, h.selected);
+    if (tall && mode === "edit") assert.deepStrictEqual(plain(result.bounds), box);
+    if (tall && mode === "qwen") assert(result.bounds.right - result.bounds.left > box.right - box.left);
+    assert.deepStrictEqual(h.source.selectionData, h.selected);
+  }
+  const standalone = host("edit", "", false, true);
+  const ps = standalone.ctx.Flux2Photoshop;
+  const selection = await ps.getSolidSelection();
+  const layer = await ps.placeResultLayer({ name: "result.png" }, selection, logger);
+  assert.deepStrictEqual(layer.mask, standalone.selected);
+  assert.deepStrictEqual(standalone.source.selectionData, standalone.selected);
+}
+
 (async () => {
-  for (const test of [components, queues, shapeValidation, firstFailureAndEmpty, synchronousApiRegression, clippingAndNativeErrorRegression]) { await test(); console.log(`PASS batch ${test.name}`); }
-  console.log("PASS 250 component fuzz cases, Edit/Fill queue scenarios, grouping, coordinates, masks, cancellation and cleanup. Host verification still required.");
+  for (const test of [components, queues, shapeValidation, firstFailureAndEmpty, synchronousApiRegression, clippingAndNativeErrorRegression, engineReadiness, openFillSingle, nearbyMasks, singleEditMasks]) { await test(); console.log(`PASS batch ${test.name}`); }
+  console.log("PASS 250 component fuzz cases, Edit/Fill/Qwen queues, grouping, coordinates, masks, cancellation and cleanup. Host verification still required.");
 })().catch((error) => { console.error(error); process.exitCode = 1; });

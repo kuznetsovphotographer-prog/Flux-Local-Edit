@@ -157,8 +157,14 @@
     return `${main}\n\nNegative prompt:\n${negative}`;
   }
 
-  function buildReferencePrompt(prompt) {
+  function buildReferencePrompt(prompt, count = 1) {
     const trimmed = String(prompt || "").trim();
+    if (count === 2) {
+      const instruction = !trimmed || trimmed === AUTO_FILL_PROMPT
+        ? "Edit image 1 using the relevant visual details from images 2 and 3."
+        : trimmed;
+      return `${instruction}\n\nImage 1 is the target and controls framing, perspective and composition. Images 2 and 3 are visual references only, in that order. Use the requested object, appearance or materials from each appropriate reference. Do not copy either reference background or change the canvas.`;
+    }
     const userPrompt = !trimmed || trimmed === AUTO_FILL_PROMPT
       ? REFERENCE_AUTO_PROMPT
       : trimmed;
@@ -291,10 +297,10 @@
     };
   }
 
-  function buildReferenceImagePrompt(ids, defaults, basics, referenceImageName) {
+  function buildReferenceImagePrompt(ids, defaults, basics, referenceImageNames) {
     const { seed, megapixels, resolutionSteps, imageName } = basics;
-    const prompt = buildReferencePrompt(basics.prompt);
-    const secondImageName = String(referenceImageName || "").trim();
+    const prompt = buildReferencePrompt(basics.prompt, referenceImageNames.length);
+    const [secondImageName, thirdImageName] = referenceImageNames;
 
     if (!secondImageName) {
       throw new Error("Reference image upload did not return an input image name.");
@@ -403,10 +409,25 @@
       latent: ref(ids.firstVaeEncode, 0)
     }, "Garment negative reference conditioning");
 
+    let positive = ids.secondPositiveReferenceLatent;
+    let negative = ids.secondNegativeReferenceLatent;
+    if (thirdImageName) {
+      const baseId = 1 + Math.max(...Object.values(ids).map(Number).filter(Number.isFinite));
+      const [load, resize, encode, pos, neg] = Array.from({ length: 5 }, (_, index) => String(baseId + index));
+      promptJson[load] = node("LoadImage", { image: thirdImageName }, "Second additional reference");
+      promptJson[resize] = node("ImageScaleToTotalPixels", {
+        image: ref(load, 0), upscale_method: defaults.upscaleMethod, megapixels, resolution_steps: resolutionSteps
+      }, "Second additional reference size");
+      promptJson[encode] = node("VAEEncode", { pixels: ref(resize, 0), vae: ref(ids.vaeLoader, 0) }, "Second additional reference encode");
+      promptJson[pos] = node("ReferenceLatent", { conditioning: ref(positive, 0), latent: ref(encode, 0) }, "Third image positive conditioning");
+      promptJson[neg] = node("ReferenceLatent", { conditioning: ref(negative, 0), latent: ref(encode, 0) }, "Third image negative conditioning");
+      positive = pos;
+      negative = neg;
+    }
     promptJson[ids.cfgGuider] = node("CFGGuider", {
       model: ref(ids.unetLoader, 0),
-      positive: ref(ids.secondPositiveReferenceLatent, 0),
-      negative: ref(ids.secondNegativeReferenceLatent, 0),
+      positive: ref(positive, 0),
+      negative: ref(negative, 0),
       cfg: defaults.cfg
     }, "CFG guider");
 
@@ -444,10 +465,11 @@
     const { map } = await loadWorkflow();
     const defaults = map.defaults;
     const basics = getPatchBasics(options, defaults);
-    const referenceImageName = String(options.referenceImageName || "").trim();
+    const names = (Array.isArray(options.referenceImageNames) ? options.referenceImageNames : [options.referenceImageName])
+      .map((name) => String(name || "").trim()).filter(Boolean).slice(0, 2);
 
-    if (referenceImageName) {
-      return buildReferenceImagePrompt(map.referenceApiNodes, defaults, basics, referenceImageName);
+    if (names.length) {
+      return buildReferenceImagePrompt(map.referenceApiNodes, defaults, basics, names);
     }
 
     return buildSingleImagePrompt(map.apiNodes, defaults, basics);

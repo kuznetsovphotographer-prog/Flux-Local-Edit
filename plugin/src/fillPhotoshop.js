@@ -1,12 +1,10 @@
 (function () {
   const photoshop = require("photoshop");
-  const { app, constants, core, action } = photoshop;
+  const { app, constants, core, action, imaging } = photoshop;
   const { storage } = require("uxp");
   const fs = storage.localFileSystem;
 
-  const CONTEXT_PADDING_RATIO = 0.2;
-  const CONTEXT_PADDING_MINIMUM = 64;
-  const CONTEXT_PADDING_MAXIMUM = 512;
+  const RGB = "sRGB IEC61966-2.1";
 
   function toNumber(value) {
     if (typeof value === "number") return value;
@@ -102,6 +100,55 @@
     }], { synchronousExecution: true });
   }
 
+  async function readSelectionMask(doc, bounds) {
+    const { imageData, sourceBounds } = await imaging.getSelection({ documentID: doc.id, sourceBounds: bounds });
+    try {
+      const box = plainBounds(sourceBounds);
+      if (imageData.components !== 1 || box.right - box.left !== imageData.width || box.bottom - box.top !== imageData.height) {
+        throw new Error("Photoshop did not return a matching grayscale Fill selection.");
+      }
+      const raw = await imageData.getData();
+      const depth = imageData.componentSize;
+      if (![8, 16, 32].includes(depth)) throw new Error("Unsupported Fill selection mask depth.");
+      const multiplier = depth === 8 ? 1 : depth === 16 ? 255 / 32768 : 255;
+      return { bounds: box, data: depth === 8 ? new Uint8Array(raw) :
+        Uint8Array.from(raw, (value) => Math.max(0, Math.min(255, Math.round(value * multiplier)))) };
+    } finally { imageData.dispose(); }
+  }
+
+  async function readRgb(doc, bounds, targetSize) {
+    const { imageData, sourceBounds, level } = await imaging.getPixels({ documentID: doc.id, sourceBounds: bounds,
+      ...(targetSize ? { targetSize } : {}), componentSize: 8, colorSpace: "RGB", colorProfile: RGB, applyAlpha: false });
+    try {
+      const box = plainBounds(sourceBounds), divisor = 2 ** (level || 0);
+      const matches = box.left === Math.floor(bounds.left / divisor) && box.top === Math.floor(bounds.top / divisor) &&
+        box.right >= Math.floor(bounds.right / divisor) && box.bottom >= Math.floor(bounds.bottom / divisor);
+      if (!matches || (imageData.components !== 3 && imageData.components !== 4)) return null;
+      const data = await imageData.getData({ chunky: true });
+      return { width: imageData.width, height: imageData.height, components: imageData.components, data: new Uint8Array(data) };
+    } finally { imageData.dispose(); }
+  }
+
+  function analysisSize(w, h) {
+    const scale = Math.min(1, 256 / Math.max(w, h));
+    return { width: Math.max(1, Math.round(w * scale)), height: Math.max(1, Math.round(h * scale)) };
+  }
+
+  function pixelBounds(w, h) { return { left: 0, top: 0, right: w, bottom: h }; }
+
+  async function fitLargeExport(doc, profile) {
+    if (!profile.nativeTransfer) {
+      await doc.resizeImage(profile.targetWidth, profile.targetHeight, undefined,
+        constants.ResampleMethod && constants.ResampleMethod.BICUBIC);
+    }
+  }
+
+  async function deleteTemp(file, logger) {
+    if (file && typeof file.delete === "function") {
+      await Promise.resolve().then(() => file.delete()).catch((error) => logger && logger.warn(`Fill temporary file cleanup: ${error.message}`));
+    }
+  }
+
   async function getSelectionContext(settings) {
     const sourceDoc = await getActiveDocument();
     const rawBounds = await Promise.resolve(sourceDoc.selection.bounds);
@@ -111,33 +158,7 @@
     const selectionBounds = plainBounds(rawBounds);
     const documentWidth = Math.max(1, Math.round(toNumber(sourceDoc.width)));
     const documentHeight = Math.max(1, Math.round(toNumber(sourceDoc.height)));
-    const context = globalThis.Flux2ImageSizing.computeContextRect(
-      selectionBounds,
-      documentWidth,
-      documentHeight,
-      {
-        paddingRatio: CONTEXT_PADDING_RATIO,
-        minimumPadding: CONTEXT_PADDING_MINIMUM,
-        maximumPadding: CONTEXT_PADDING_MAXIMUM
-      }
-    );
-    const target = globalThis.Flux2ImageSizing.computeCappedTargetSize(
-      context.width,
-      context.height,
-      settings && settings.megapixels,
-      settings && settings.roundingMultiple || 16
-    );
-    return {
-      docId: sourceDoc.id,
-      selectionBounds: context.selectionBounds,
-      contextBounds: context.contextBounds,
-      contextWidth: context.width,
-      contextHeight: context.height,
-      padding: context.padding,
-      targetWidth: target.targetWidth,
-      targetHeight: target.targetHeight,
-      targetMegapixels: target.targetMegapixels
-    };
+    return { docId: sourceDoc.id, ...globalThis.FluxLocalEditFillBlend.plan(selectionBounds, documentWidth, documentHeight, settings) };
   }
 
   function collectLayers(doc) {
@@ -195,52 +216,43 @@
       const selectionBounds = plainBounds(rawBounds);
       const documentWidth = Math.max(1, Math.round(toNumber(sourceDoc.width)));
       const documentHeight = Math.max(1, Math.round(toNumber(sourceDoc.height)));
-      const context = globalThis.Flux2ImageSizing.computeContextRect(
-        selectionBounds,
-        documentWidth,
-        documentHeight,
-        {
-          paddingRatio: CONTEXT_PADDING_RATIO,
-          minimumPadding: CONTEXT_PADDING_MINIMUM,
-          maximumPadding: CONTEXT_PADDING_MAXIMUM
-        }
-      );
-      const target = globalThis.Flux2ImageSizing.computeCappedTargetSize(
-        context.width,
-        context.height,
-        settings && settings.megapixels,
-        settings && settings.roundingMultiple || 16
-      );
+      const blend = globalThis.FluxLocalEditFillBlend;
+      const baseProfile = blend.plan(selectionBounds, documentWidth, documentHeight, settings);
       const nonce = makeNonce();
       const channelName = `Flux Local Edit Selection ${nonce}`;
       const activeLayerIds = Array.from(sourceDoc.activeLayers || []).map((layer) => layer.id);
       const tempFolder = await fs.getTemporaryFolder();
-      const contextFile = await tempFolder.createFile(`flux-local-edit-context-${nonce}.png`, { overwrite: true });
-      const maskFile = await tempFolder.createFile(`flux-local-edit-mask-${nonce}.png`, { overwrite: true });
+      let contextFile = null, maskFile = null;
       let contextDoc = null;
       let maskDoc = null;
       let keepSourceChannel = false;
 
       try {
+        contextFile = await tempFolder.createFile(`flux-local-edit-context-${nonce}.png`, { overwrite: true });
+        maskFile = await tempFolder.createFile(`flux-local-edit-mask-${nonce}.png`, { overwrite: true });
         await sourceDoc.selection.save(channelName);
         const sourceChannel = findChannelByName(sourceDoc, channelName);
         if (!sourceChannel) {
           throw new Error("Photoshop did not create the temporary selection channel.");
         }
 
-        logger && logger.info(
-          `Fill context ${context.width} x ${context.height}px; padding ${context.padding}px; upload ${target.targetWidth} x ${target.targetHeight}px (${target.targetMegapixels.toFixed(2)} MP).`
-        );
+        const inputMask = await readSelectionMask(sourceDoc, baseProfile.selectionBounds);
+        const profile = blend.generationMaskProfile(baseProfile, inputMask);
+        const strictMask = Boolean(options.strictMask);
+        logger && logger.info(`Fill context ${profile.contextWidth} x ${profile.contextHeight}px; ` +
+          `render ${profile.targetWidth} x ${profile.targetHeight}px (${profile.targetMegapixels.toFixed(2)} MP); ` +
+          `generation mask grow/blur ${profile.growWork}/${profile.blurWork}px` +
+          (profile.maskThickness ? ` (limited for a ${profile.maskThickness.toFixed(1)}px-thick selection); ` : "; ") +
+          `layer mask ${strictMask ? `inward feather up to ${profile.featherImage}px` : `grow/feather ${profile.layerGrow}/${profile.featherImage}px`}.`);
 
         contextDoc = await sourceDoc.duplicate(`Flux Local Edit context ${nonce}`, true);
         await prepareExportDocument(contextDoc);
-        await contextDoc.crop(context.contextBounds);
-        await contextDoc.resizeImage(
-          target.targetWidth,
-          target.targetHeight,
-          undefined,
-          constants.ResampleMethod && constants.ResampleMethod.BICUBIC
-        );
+        await contextDoc.crop(profile.contextBounds);
+        const size = analysisSize(profile.contextWidth, profile.contextHeight);
+        let original = null;
+        try { original = await readRgb(contextDoc, pixelBounds(profile.contextWidth, profile.contextHeight), size); }
+        catch (error) { logger && logger.warn(`Fill edge color reference unavailable: ${error.message}`); }
+        await fitLargeExport(contextDoc, profile);
         await contextDoc.saveAs.png(contextFile, {}, true);
         await closeWithoutSaving(contextDoc);
         contextDoc = null;
@@ -260,13 +272,8 @@
         await fillCurrentSelection("black");
         await maskDoc.selection.load(maskChannel, constants.SelectionType.REPLACE, false);
         await fillCurrentSelection("white");
-        await maskDoc.crop(context.contextBounds);
-        await maskDoc.resizeImage(
-          target.targetWidth,
-          target.targetHeight,
-          undefined,
-          constants.ResampleMethod && constants.ResampleMethod.BICUBIC
-        );
+        await maskDoc.crop(profile.contextBounds);
+        await fitLargeExport(maskDoc, profile);
         await maskDoc.selection.deselect();
         await maskDoc.saveAs.png(maskFile, {}, true);
         await closeWithoutSaving(maskDoc);
@@ -281,14 +288,10 @@
           docTitle: sourceDoc.title || sourceDoc.name || "Untitled",
           activeLayerIds,
           selectionChannelName: channelName,
-          selectionBounds: context.selectionBounds,
-          contextBounds: context.contextBounds,
-          contextWidth: context.width,
-          contextHeight: context.height,
-          padding: context.padding,
-          targetWidth: target.targetWidth,
-          targetHeight: target.targetHeight,
-          targetMegapixels: target.targetMegapixels,
+          ...profile,
+          strictMask,
+          inputMask,
+          original,
           contextFile,
           maskFile,
           nonce
@@ -296,6 +299,10 @@
       } finally {
         if (contextDoc) await closeWithoutSaving(contextDoc).catch(() => null);
         if (maskDoc) await closeWithoutSaving(maskDoc).catch(() => null);
+        if (!keepSourceChannel) {
+          await deleteTemp(contextFile, logger);
+          await deleteTemp(maskFile, logger);
+        }
         const liveSource = getDocumentById(sourceDoc.id);
         if (liveSource) {
           await activateDocumentById(sourceDoc.id).catch(() => null);
@@ -393,6 +400,70 @@
     }], { synchronousExecution: true });
   }
 
+  async function selectBlendMask(doc, mask) {
+    const { left, top, right, bottom } = mask.bounds;
+    const imageData = await imaging.createImageDataFromBuffer(mask.data, { width: right - left, height: bottom - top,
+      components: 1, colorSpace: "Grayscale", colorProfile: "Gray Gamma 2.2" });
+    try { await imaging.putSelection({ documentID: doc.id, imageData, replace: true, targetBounds: { left, top } }); }
+    finally { imageData.dispose(); }
+  }
+
+  // Work on the downloaded PNG in a temporary Photoshop document, never on the user's layers.
+  async function correctResultEdge(resultFile, session, logger, check) {
+    if (!session.original) return null;
+    const { contextWidth: w, contextHeight: h, contextBounds: crop, selectionBounds: box } = session;
+    let resultDoc = null, corrected = null, saved = false;
+    try {
+      check();
+      resultDoc = await app.open(resultFile);
+      if (toNumber(resultDoc.width) !== w || toNumber(resultDoc.height) !== h) {
+        if (toNumber(resultDoc.width) !== session.targetWidth || toNumber(resultDoc.height) !== session.targetHeight) {
+          const error = new Error("The generated image does not match its Fill context.");
+          error.kind = "fill_geometry";
+          throw error;
+        }
+        await resultDoc.resizeImage(w, h, undefined, constants.ResampleMethod && constants.ResampleMethod.BICUBIC);
+      }
+      const blend = globalThis.FluxLocalEditFillBlend;
+      const generated = await readRgb(resultDoc, pixelBounds(w, h), analysisSize(w, h));
+      const field = blend.seamField(session.original, generated, session.inputMask, session);
+      if (!field) return null;
+
+      const reach = session.strictMask ? 0 : session.layerGrow + 3 * session.featherImage;
+      const left = Math.max(0, box.left - crop.left - reach), top = Math.max(0, box.top - crop.top - reach);
+      const right = Math.min(w, box.right - crop.left + reach), bottom = Math.min(h, box.bottom - crop.top + reach);
+      const foreground = await resultDoc.createLayer(constants.LayerKind.NORMAL, { name: "Fill edge color correction" });
+      const stripHeight = Math.max(1, Math.floor(750000 / (right - left)));
+      for (let y = top; y < bottom; y += stripHeight) {
+        check();
+        const end = Math.min(bottom, y + stripHeight);
+        const pixels = await readRgb(resultDoc, { left, top: y, right, bottom: end });
+        if (!pixels || pixels.width !== right - left || pixels.height !== end - y) return null;
+        if (pixels.components === 4) {
+          for (let i = 3; i < pixels.data.length; i += 4) if (pixels.data[i] !== 255) return null;
+        }
+        blend.applySeam(pixels.data, pixels.width, pixels.height, pixels.components, left, y, field);
+        const imageData = await imaging.createImageDataFromBuffer(pixels.data, { width: pixels.width,
+          height: pixels.height, components: pixels.components, colorSpace: "RGB", colorProfile: RGB });
+        try { await imaging.putPixels({ documentID: resultDoc.id, layerID: foreground.id, imageData,
+          replace: false, targetBounds: { left, top: y } }); }
+        finally { imageData.dispose(); }
+      }
+      check();
+      const temp = await fs.getTemporaryFolder();
+      corrected = await temp.createFile(`local-edit-fill-blended-${session.nonce}.png`, { overwrite: true });
+      await resultDoc.flatten();
+      await resultDoc.saveAs.png(corrected, {}, true);
+      logger && logger.info(`Corrected the Fill seam (maximum RGB offset ${field.largest.toFixed(1)} levels).`);
+      saved = true;
+      return corrected;
+    } finally {
+      try { if (resultDoc) await closeWithoutSaving(resultDoc); }
+      catch (error) { logger && logger.warn(`Could not close the Fill result work document: ${error.message}`); }
+      if (!saved) await deleteTemp(corrected, logger);
+    }
+  }
+
   async function deleteLayer(layer) {
     if (!layer) return;
     if (typeof layer.delete === "function") {
@@ -429,32 +500,54 @@
     }, { commandName: "Restore Flux Local Edit Fill state" });
   }
 
-  async function placeFillResult(resultFile, session, logger, check = () => {}) {
+  async function placeMaskedResult(resultFile, session, logger, check, label) {
     return core.executeAsModal(async () => {
       check();
       if (session.batch) globalThis.FluxLocalEditBatchPhotoshop.validSource(session.batch.session);
       const doc = getDocumentById(session.docId);
       if (!doc) throw new Error("The original Photoshop document was closed during generation.");
+      if (session.inputMask && (toNumber(doc.width) !== session.docWidth || toNumber(doc.height) !== session.docHeight)) {
+        throw new Error("The source canvas size changed during Fill generation.");
+      }
       await activateDocumentById(session.docId);
       const channel = findChannelByName(doc, session.selectionChannelName);
-      if (!channel) throw new Error("The saved Fill selection is no longer available.");
+      if (!channel) throw new Error(`The saved ${label} selection is no longer available.`);
 
-      let placedLayer = null;
+      let placedLayer = null, corrected = null;
       try {
+        if (session.inputMask) {
+          try { corrected = await correctResultEdge(resultFile, session, logger, check); }
+          catch (error) {
+            check();
+            if (error.kind === "fill_geometry") throw error;
+            logger && logger.warn(`Fill seam color correction skipped: ${error.message}`);
+          }
+          await activateDocumentById(session.docId);
+          check();
+        }
         await doc.selection.load(channel, constants.SelectionType.REPLACE, false);
-        await placeEmbeddedFile(resultFile);
+        await placeEmbeddedFile(corrected || resultFile);
         placedLayer = activeLayer(doc);
-        if (!placedLayer) throw new Error("Photoshop did not create a Fill result layer.");
-        placedLayer.name = "Flux Local Edit - Fill";
+        if (!placedLayer) throw new Error(`Photoshop did not create a ${label} result layer.`);
+        placedLayer.name = `Flux Local Edit - ${label}`;
         await fitLayerToBounds(placedLayer, session.contextBounds, logger);
         check();
-        await doc.selection.load(channel, constants.SelectionType.REPLACE, false);
+        const blend = globalThis.FluxLocalEditFillBlend;
+        // Qwen has no Fill inputMask and always reloads its exact saved selection.
+        const mask = session.inputMask && (session.strictMask ? blend.innerLayerMask(session.inputMask, session) :
+          blend.layerMask(session.inputMask, session));
+        const useBlendMask = mask && mask !== session.inputMask;
+        check();
+        if (useBlendMask) await selectBlendMask(doc, mask);
+        else await doc.selection.load(channel, constants.SelectionType.REPLACE, false);
+        check();
         await createLayerMaskFromSelection();
         if (session.batch) await globalThis.FluxLocalEditBatchPhotoshop.attachResult(placedLayer, session.batch);
         check();
         await doc.selection.load(channel, constants.SelectionType.REPLACE, false);
         await channel.remove();
-        logger && logger.info("Applied the original selection as the Fill layer mask.");
+        const maskLabel = useBlendMask ? (session.strictMask ? "inward Fill blend" : "soft Fill blend") : "original selection";
+        logger && logger.info(`Applied the ${maskLabel} as the ${label} layer mask.`);
         return placedLayer;
       } catch (error) {
         if (placedLayer) await deleteLayer(placedLayer).catch(() => null);
@@ -465,8 +558,18 @@
         }
         await restoreActiveLayers(doc, session.activeLayerIds).catch(() => null);
         throw error;
+      } finally {
+        await deleteTemp(corrected, logger);
       }
-    }, { commandName: "Place Flux Local Edit Fill result" });
+    }, { commandName: `Place Flux Local Edit ${label} result` });
+  }
+
+  function placeFillResult(resultFile, session, logger, check = () => {}) {
+    return placeMaskedResult(resultFile, session, logger, check, "Fill");
+  }
+
+  function placeQwenResult(resultFile, session, logger, check = () => {}) {
+    return placeMaskedResult(resultFile, session, logger, check, "Qwen");
   }
 
   async function diagnosticMaskRoundTrip(settings, logger) {
@@ -507,13 +610,13 @@
   }
 
   globalThis.FluxLocalEditFillPhotoshop = {
-    CONTEXT_PADDING_MAXIMUM,
-    CONTEXT_PADDING_MINIMUM,
-    CONTEXT_PADDING_RATIO,
+    createLayerMaskFromSelection,
+    deleteTemp,
     diagnosticMaskRoundTrip,
     exportFillAssets,
     getSelectionContext,
     placeFillResult,
+    placeQwenResult,
     removeLayerById,
     restoreFillSession
   };
